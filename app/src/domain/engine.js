@@ -7,6 +7,22 @@ function stageMs(stage) {
   return Math.max(stage.durationHours * HOUR_MS, 1000)
 }
 
+/** "Agora" da fermentação: fica parado no instante da pausa enquanto ela estiver pausada. */
+export const runClock = (run, now) => run.pausedAt ?? now
+
+/** Pausa: congela o relógio das etapas. */
+export function pauseRun(run, now) {
+  return run.pausedAt ? run : { ...run, pausedAt: now }
+}
+
+/** Retoma: empurra o início da etapa pelo tempo parado, então sobra exatamente o que faltava. */
+export function resumeRun(run, now) {
+  if (!run.pausedAt) return run
+  const stopped = Math.max(0, now - run.pausedAt)
+  const { pausedAt, ...rest } = run
+  return { ...rest, startedAt: rest.startedAt + stopped, stageStartedAt: rest.stageStartedAt + stopped }
+}
+
 export function startRun(batch, now) {
   return { batchId: batch.id, startedAt: now, stageIndex: 0, stageStartedAt: now }
 }
@@ -18,6 +34,7 @@ export function startRun(batch, now) {
  *   run null = a fermentação terminou
  */
 export function advanceRun(run, batch, now) {
+  now = runClock(run, now) // pausada: o tempo não passa
   let current = run
   const events = []
   for (;;) {
@@ -54,14 +71,14 @@ export function skipStage(run, batch, now) {
 export function stageRemainingMs(run, batch, now) {
   const stage = batch.stages[run.stageIndex]
   if (!stage) return 0
-  return Math.max(0, run.stageStartedAt + stageMs(stage) - now)
+  return Math.max(0, run.stageStartedAt + stageMs(stage) - runClock(run, now))
 }
 
 /** 0..1 de progresso dentro da etapa atual. */
 export function stageFraction(run, batch, now) {
   const stage = batch.stages[run.stageIndex]
   if (!stage) return 1
-  return Math.min(1, Math.max(0, (now - run.stageStartedAt) / stageMs(stage)))
+  return Math.min(1, Math.max(0, (runClock(run, now) - run.stageStartedAt) / stageMs(stage)))
 }
 
 export function totalHours(batch) {

@@ -18,9 +18,10 @@ export default function RunChart({ f }) {
   const box = useRef(null)
   const drag = useRef(null)
 
-  const span = Math.max(now - run.startedAt, 1000) // quanto tempo a fermentação já tem
+  const startedAt = activeRecord?.startedAt ?? run.startedAt // início real (o do motor se desloca ao retomar)
+  const span = Math.max(now - startedAt, 1000) // quanto tempo a fermentação já tem
   const W = Math.min(WINDOW_MS, span) // tamanho da janela (nunca maior que a fermentação)
-  const minEnd = run.startedAt + W
+  const minEnd = startedAt + W
   const end = endAt === null ? now : Math.min(now, Math.max(minEnd, endAt))
   const live = endAt === null || end >= now - 500
 

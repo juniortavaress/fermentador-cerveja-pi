@@ -38,9 +38,9 @@ export function Segmented({ options, value, onChange }) {
   )
 }
 
-export function Switch({ checked, onChange, label }) {
+export function Switch({ checked, onChange, label, disabled = false }) {
   return (
-    <button role="switch" aria-checked={checked} aria-label={label} className="switch" onClick={onChange}>
+    <button role="switch" aria-checked={checked} aria-label={label} className="switch" onClick={onChange} disabled={disabled}>
       <span />
     </button>
   )

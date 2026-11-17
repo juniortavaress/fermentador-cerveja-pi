@@ -1,8 +1,9 @@
-import { HOUR_MS, stageFraction, stageRemainingMs, totalHours } from "../domain/engine.js"
+import { HOUR_MS, runClock, stageFraction, stageRemainingMs, totalHours } from "../domain/engine.js"
 import { formatDuration } from "../domain/format.js"
 import { summarize } from "../domain/records.js"
 import { fmtTemp } from "../domain/units.js"
 import { Card } from "../ui/primitives.jsx"
+import { IconPause, IconPlay, IconSkip, IconStop } from "../ui/icons.jsx"
 import RunChart from "./RunChart.jsx"
 import { activityInfo } from "../ui/connection.js"
 
@@ -12,22 +13,23 @@ function RunCard({ f, askConfirm }) {
   const stage = batch.stages[run.stageIndex]
   const next = batch.stages[run.stageIndex + 1]
   const last = !next
+  const paused = !!run.pausedAt
 
   const requestStop = () =>
     askConfirm({
-      title: "Parar a fermentação?",
-      message: `“${batch.name}” será interrompida. Para fermentar de novo, ela recomeça pela primeira etapa.`,
-      confirmLabel: "Parar fermentação",
+      title: "Encerrar a fermentação?",
+      message: `“${batch.name}” será encerrada. Para fermentar de novo, ela recomeça pela primeira etapa.`,
+      confirmLabel: "Encerrar fermentação",
       onConfirm: f.stopBatch,
     })
 
   const requestSkip = () =>
     askConfirm({
-      title: last ? "Encerrar a fermentação?" : "Pular esta etapa?",
+      title: last ? "Concluir a fermentação?" : "Pular esta etapa?",
       message: last
-        ? `“${stage.name}” é a última etapa. Pular encerra a fermentação.`
+        ? `“${stage.name}” é a última etapa. Concluir finaliza a fermentação.`
         : `“${stage.name}” termina agora e o lote segue para “${next.name}”. A temperatura será ajustada sozinha.`,
-      confirmLabel: last ? "Encerrar" : "Pular etapa",
+      confirmLabel: last ? "Concluir" : "Pular etapa",
       onConfirm: f.skipCurrentStage,
     })
 
@@ -35,12 +37,12 @@ function RunCard({ f, askConfirm }) {
     <Card>
       <div className="row" style={{ alignItems: "flex-start" }}>
         <div>
-          <p className="label">Fermentando</p>
+          <p className="label">{paused ? "Pausada" : "Fermentando"}</p>
           <p className="h2" style={{ marginTop: 4 }}>
             {batch.name}
           </p>
         </div>
-        <span className="pill blue">
+        <span className={`pill ${paused ? "amber" : "blue"}`}>
           Etapa {run.stageIndex + 1} de {batch.stages.length}
         </span>
       </div>
@@ -51,7 +53,7 @@ function RunCard({ f, askConfirm }) {
           <p className="sub">a {fmtTemp(stage.temp, unit)} °{unit}</p>
         </div>
         <div className="progress" role="progressbar" aria-valuenow={Math.round(stageFraction(run, batch, now) * 100)} aria-valuemin={0} aria-valuemax={100}>
-          <div style={{ width: `${stageFraction(run, batch, now) * 100}%` }} />
+          <div style={{ width: `${stageFraction(run, batch, now) * 100}%`, background: paused ? "#f59e0b" : undefined }} />
         </div>
         <p className="small" style={{ marginTop: 8 }}>
           Restam {formatDuration(stageRemainingMs(run, batch, now))}
@@ -60,12 +62,25 @@ function RunCard({ f, askConfirm }) {
       </div>
 
       <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-        <button className="btn ghost small-btn" onClick={requestSkip}>
-          {last ? "Encerrar" : "Pular etapa"}
-        </button>
-        <button className="btn ghost-red small-btn" onClick={requestStop}>
-          Parar
-        </button>
+        {paused ? (
+          <>
+            <button className="btn green small-btn" onClick={f.resumeBatch}>
+              <IconPlay /> Retomar
+            </button>
+            <button className="btn ghost-red small-btn" onClick={requestStop}>
+              <IconStop /> Encerrar
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="btn ghost small-btn" onClick={f.pauseBatch}>
+              <IconPause /> Pausar
+            </button>
+            <button className="btn ghost small-btn" onClick={requestSkip}>
+              <IconSkip /> {last ? "Concluir" : "Pular etapa"}
+            </button>
+          </>
+        )}
       </div>
     </Card>
   )
@@ -76,7 +91,7 @@ function ProgressCard({ f }) {
   const { run, runBatch: batch, now } = f
   const unit = f.settings.unit
   const totalMs = totalHours(batch) * HOUR_MS
-  const elapsed = Math.min(Math.max(now - run.startedAt, 0), totalMs)
+  const elapsed = Math.min(Math.max(runClock(run, now) - run.startedAt, 0), totalMs)
 
   return (
     <Card>

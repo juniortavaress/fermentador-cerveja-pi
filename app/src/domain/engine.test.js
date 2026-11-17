@@ -5,6 +5,8 @@ import {
   deviationOnSetpointChange,
   evaluateDeviation,
   initialDeviation,
+  pauseRun,
+  resumeRun,
   runSetpoint,
   skipStage,
   stageFraction,
@@ -107,5 +109,42 @@ describe("alerta de desvio", () => {
     const s = deviationOnSetpointChange(initialDeviation, 1000, 30 * 60_000)
     expect(evaluateDeviation(s, 2, 1000 + 10 * 60_000, 0.5).event).toBeNull()
     expect(evaluateDeviation(s, 2, 1000 + 31 * 60_000, 0.5).event).toBe("start")
+  })
+})
+
+describe("pausar e retomar", () => {
+  const batch = {
+    id: "b",
+    stages: [
+      { name: "A", durationHours: 1, temp: 20 },
+      { name: "B", durationHours: 1, temp: 10 },
+    ],
+  }
+  const H = 3_600_000
+
+  it("pausada, o tempo não passa: a etapa não avança nem acaba", () => {
+    const run = pauseRun(startRun(batch, 0), 30 * 60_000) // pausa aos 30 min
+    expect(advanceRun(run, batch, 10 * H).run.stageIndex).toBe(0)
+    expect(advanceRun(run, batch, 10 * H).events).toEqual([])
+    expect(stageRemainingMs(run, batch, 10 * H)).toBe(30 * 60_000) // continua faltando meia hora
+    expect(stageFraction(run, batch, 10 * H)).toBeCloseTo(0.5, 5)
+  })
+
+  it("ao retomar, sobra exatamente o que faltava", () => {
+    let run = pauseRun(startRun(batch, 0), 30 * 60_000)
+    run = resumeRun(run, 5 * H) // ficou parada de 0h30 a 5h
+    expect(run.pausedAt).toBeUndefined()
+    expect(stageRemainingMs(run, batch, 5 * H)).toBe(30 * 60_000)
+    expect(advanceRun(run, batch, 5 * H + 29 * 60_000).run.stageIndex).toBe(0)
+    const after = advanceRun(run, batch, 5 * H + 31 * 60_000)
+    expect(after.run.stageIndex).toBe(1)
+    expect(after.events[0]).toMatchObject({ type: "stage", at: 5 * H + 30 * 60_000 })
+  })
+
+  it("pausar duas vezes ou retomar sem pausa não faz nada", () => {
+    const run = startRun(batch, 0)
+    expect(resumeRun(run, 1000)).toBe(run)
+    const paused = pauseRun(run, 1000)
+    expect(pauseRun(paused, 9999)).toBe(paused) // mantém o instante original
   })
 })

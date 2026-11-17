@@ -8,6 +8,8 @@ import {
   deviationOnSetpointChange,
   evaluateDeviation,
   initialDeviation,
+  pauseRun,
+  resumeRun,
   runSetpoint,
   skipStage,
   startRun,
@@ -439,9 +441,26 @@ export function useFermenter() {
     addLog("Fermentação interrompida", `${batch?.name ?? "Lote"}${stage ? ` · etapa ${stage.name}` : ""}`, "warning")
   }, [addLog, commitRun, finalizeRecord])
 
+  /** Pausa a fermentação: o relógio da etapa para; a placa continua mantendo a temperatura da etapa. */
+  const pauseBatch = useCallback(() => {
+    const L = live.current
+    if (!L.run || L.run.pausedAt) return
+    const batch = L.batches.find((b) => b.id === L.run.batchId)
+    commitRun(pauseRun(L.run, Date.now()))
+    addLog("Fermentação pausada", `${batch?.name ?? "Lote"} · etapa ${batch?.stages[L.run.stageIndex]?.name ?? ""}`.trim(), "info")
+  }, [addLog, commitRun])
+
+  const resumeBatch = useCallback(() => {
+    const L = live.current
+    if (!L.run || !L.run.pausedAt) return
+    const batch = L.batches.find((b) => b.id === L.run.batchId)
+    commitRun(resumeRun(L.run, Date.now()))
+    addLog("Fermentação retomada", `${batch?.name ?? "Lote"} · etapa ${batch?.stages[L.run.stageIndex]?.name ?? ""}`.trim(), "info")
+  }, [addLog, commitRun])
+
   const skipCurrentStage = useCallback(() => {
     const L = live.current
-    if (!L.run) return
+    if (!L.run || L.run.pausedAt) return
     const batch = L.batches.find((b) => b.id === L.run.batchId)
     if (!batch) return
     const { run: next, events } = skipStage(L.run, batch, Date.now())
@@ -523,6 +542,8 @@ export function useFermenter() {
     selectBatch: setSelectedId,
     startBatch,
     stopBatch,
+    pauseBatch,
+    resumeBatch,
     skipCurrentStage,
     setManualSetpoint,
     createBatch,

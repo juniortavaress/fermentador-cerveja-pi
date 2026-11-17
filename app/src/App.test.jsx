@@ -75,8 +75,9 @@ describe("App", () => {
     expect(screen.queryByRole("dialog")).toBeNull()
     expect(screen.getByText("Etapa 2 de 4")).toBeTruthy()
 
-    tab("Parar")
-    click("Parar fermentação")
+    click("Pausar")
+    click("Encerrar")
+    click("Encerrar fermentação")
     await advance(200)
     expect(screen.getByText("Pronto para fermentar")).toBeTruthy()
 
@@ -287,8 +288,9 @@ describe("App", () => {
     expect(screen.getByText("Em andamento")).toBeTruthy() // ela aparece já enquanto roda
     // parar pelo Início
     tab("Início")
-    click("Parar")
-    click("Parar fermentação")
+    click("Pausar")
+    click("Encerrar")
+    click("Encerrar fermentação")
     await advance(300)
 
     tab("Histórico")
@@ -314,8 +316,9 @@ describe("App", () => {
     click(/Iniciar fermentação/)
     await advance(3000)
     tab("Início")
-    click("Parar")
-    click("Parar fermentação")
+    click("Pausar")
+    click("Encerrar")
+    click("Encerrar fermentação")
     await advance(300)
     tab("Histórico")
     click("Fermentações")
@@ -408,10 +411,202 @@ describe("App", () => {
     expect(screen.getByText("Temp. mín.").parentElement.textContent).toMatch(/\d+,\d °C/) // já tem leituras desta fermentação
 
     // parar: tudo some de novo
-    click("Parar")
-    click("Parar fermentação")
+    click("Pausar")
+    click("Encerrar")
+    click("Encerrar fermentação")
     await advance(300)
     expect(screen.queryByText("Progresso da fermentação")).toBeNull()
     expect(screen.queryByText("Temp. mín.")).toBeNull()
+  })
+
+  describe("Modo dev (circuito ao lado do celular)", () => {
+    const desktop = () => {
+      window.matchMedia = (query) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} })
+    }
+    afterEach(() => {
+      delete window.matchMedia
+    })
+
+    it("no celular (tela estreita) não cabe o painel do circuito, mas o Modo dev continua em Ajustes", async () => {
+      render(<App />)
+      await advance(2000)
+      expect(screen.queryByLabelText("Circuito simulado")).toBeNull()
+      tab("Ajustes")
+      expect(screen.getByRole("switch", { name: "Modo dev" }).getAttribute("aria-checked")).toBe("true")
+      expect(screen.getByRole("switch", { name: "Simulação automática" })).toBeTruthy()
+    })
+
+    it("no computador, o Modo dev liga e desliga o circuito pelo interruptor em Ajustes", async () => {
+      desktop()
+      render(<App />)
+      await advance(2000)
+      expect(screen.getByLabelText("Circuito simulado")).toBeTruthy() // o modo salvo é dev
+      tab("Ajustes")
+      const sw = screen.getByRole("switch", { name: "Modo dev" })
+      expect(sw.getAttribute("aria-checked")).toBe("true")
+      fireEvent.click(sw)
+      await advance(200)
+      expect(screen.queryByLabelText("Circuito simulado")).toBeNull()
+      expect(JSON.parse(localStorage.getItem("fermentador.settings")).mode).toBe("live")
+      fireEvent.click(screen.getByRole("switch", { name: "Modo dev" }))
+      await advance(2500)
+      expect(screen.getByLabelText("Circuito simulado")).toBeTruthy()
+      expect(screen.getAllByText("Conectado").length).toBeGreaterThan(0) // a placa simulada conectou sozinha
+    })
+
+    it("o potenciômetro define a temperatura interna e o ambiente é fixo; a mola e a ventoinha reagem às saídas", async () => {
+      desktop()
+      render(<App />)
+      await advance(2000)
+      const coil = () => screen.getByTestId("coil").getAttribute("data-on")
+      const fan = () => screen.getByTestId("fan").getAttribute("data-on")
+      expect(coil()).toBe("false") // em espera: tudo desligado
+      expect(fan()).toBe("false")
+
+      fireEvent.change(screen.getByLabelText("Temperatura interna (potenciômetro)"), { target: { value: "10" } })
+      fireEvent.change(screen.getByLabelText("Temperatura ambiente (NTC)"), { target: { value: "30" } })
+      await advance(2000)
+      expect(screen.getByText("Temperatura da câmara").parentElement.textContent).toMatch(/10,0/)
+
+      tab("Lotes")
+      click("Exemplo · American IPA") // 1ª etapa: 20 °C
+      click(/Iniciar fermentação/)
+      await advance(4000)
+      expect(coil()).toBe("true") // câmara a 10 °C, alvo 20 °C: aquece (mola acesa)
+      expect(fan()).toBe("true") // ambiente 30 °C acima do alvo: resfria (ventoinha gira)
+      expect(screen.queryByText("Controlando")).toBeNull() // sem esse texto no desenho
+      expect(document.querySelector("animateTransform")).toBeTruthy() // a ventoinha está girando
+
+      click("Pausar")
+      click("Encerrar")
+      click("Encerrar fermentação")
+      await advance(3000)
+      expect(coil()).toBe("false")
+      expect(fan()).toBe("false")
+      expect(screen.getAllByText("Em espera").length).toBeGreaterThan(0)
+    })
+  })
+
+  it("controles da fermentação: Pausar/Pular rodando; Retomar/Encerrar pausada", async () => {
+    render(<App />)
+    await advance(2000)
+    tab("Lotes")
+    click("Exemplo · American IPA")
+    click(/Iniciar fermentação/)
+    await advance(500)
+
+    // rodando: Pausar e Pular etapa; nada de Encerrar
+    expect(screen.getByText("Pausar")).toBeTruthy()
+    expect(screen.getByText("Pular etapa")).toBeTruthy()
+    expect(screen.queryByText("Encerrar")).toBeNull()
+    expect(screen.queryByText("Retomar")).toBeNull()
+
+    click("Pausar")
+    // pausada: Retomar e Encerrar; sem Pausar nem Pular
+    expect(screen.getByText("Retomar")).toBeTruthy()
+    expect(screen.getByText("Encerrar")).toBeTruthy()
+    expect(screen.queryByText("Pausar")).toBeNull()
+    expect(screen.queryByText("Pular etapa")).toBeNull()
+    expect(screen.getByText("Pausada")).toBeTruthy() // selo no card
+
+    click("Retomar")
+    expect(screen.getByText("Pausar")).toBeTruthy()
+    expect(screen.getByText("Fermentando")).toBeTruthy()
+
+    // encerrar pede confirmação e só existe pausada
+    click("Pausar")
+    click("Encerrar")
+    expect(screen.getByRole("dialog")).toBeTruthy()
+    fireEvent.click(screen.getByText("Cancelar"))
+    expect(screen.getByText("Retomar")).toBeTruthy() // continua pausada
+    click("Encerrar")
+    click("Encerrar fermentação")
+    await advance(300)
+    expect(screen.getByText("Pronto para fermentar")).toBeTruthy()
+  })
+
+  describe("Simular (Modo dev no celular)", () => {
+    const menu = (name) => fireEvent.click(screen.getByLabelText(`Opções de ${name}`))
+
+    it("o menu de três pontos só tem Simular com o Modo dev ligado", async () => {
+      render(<App />)
+      await advance(2000)
+      tab("Lotes")
+      menu("Exemplo · Pilsen")
+      expect(screen.getByText("Simular")).toBeTruthy()
+      fireEvent.keyDown(window, { key: "Escape" })
+
+      tab("Ajustes")
+      fireEvent.click(screen.getByRole("switch", { name: "Modo dev" })) // desliga
+      await advance(300)
+      expect(screen.queryByRole("switch", { name: "Simulação automática" })).toBeNull()
+      tab("Lotes")
+      menu("Exemplo · Pilsen")
+      expect(screen.queryByText("Simular")).toBeNull()
+    })
+
+    it("Simular inicia a fermentação e a câmara e o ambiente se mexem sozinhos, sem tocar em nada", async () => {
+      render(<App />)
+      await advance(2000)
+      tab("Lotes")
+      menu("Exemplo · American IPA") // 1ª etapa: 20 °C
+      click("Simular")
+      await advance(500)
+      expect(screen.getByText("Fermentando")).toBeTruthy() // foi para o Início, já rodando
+      expect(JSON.parse(localStorage.getItem("fermentador.sim")).auto).toBe(true)
+
+      const chamber = () => JSON.parse(localStorage.getItem("fermentador.sim")).chamber
+      const ambient = () => JSON.parse(localStorage.getItem("fermentador.sim")).ambient
+      const c0 = chamber()
+      const seen = new Set()
+      for (let i = 0; i < 40; i++) {
+        await advance(1000)
+        seen.add(ambient())
+      }
+      expect(Math.abs(chamber() - 20)).toBeLessThan(1) // câmara foi até o alvo da etapa
+      expect(chamber()).not.toBe(c0) // e saiu de onde estava
+      expect(seen.size).toBeGreaterThan(3) // o ambiente também variou
+    })
+
+    it("Simular fica desativado com outra fermentação em andamento", async () => {
+      render(<App />)
+      await advance(2000)
+      tab("Lotes")
+      click("Exemplo · American IPA")
+      click(/Iniciar fermentação/)
+      await advance(300)
+      tab("Lotes")
+      menu("Exemplo · Pilsen")
+      expect(screen.getByText("Simular").closest("button").disabled).toBe(true)
+    })
+
+    it("a Simulação automática desliga pelos Ajustes", async () => {
+      render(<App />)
+      await advance(2000)
+      tab("Lotes")
+      menu("Exemplo · American IPA")
+      click("Simular")
+      await advance(500)
+      tab("Ajustes")
+      const sw = screen.getByRole("switch", { name: "Simulação automática" })
+      expect(sw.getAttribute("aria-checked")).toBe("true")
+      fireEvent.click(sw)
+      expect(JSON.parse(localStorage.getItem("fermentador.sim")).auto).toBe(false)
+    })
+
+    it("no computador, mexer num slider do circuito assume o controle (desliga o automático)", async () => {
+      window.matchMedia = (query) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} })
+      render(<App />)
+      await advance(2000)
+      tab("Lotes")
+      menu("Exemplo · American IPA")
+      click("Simular")
+      await advance(500)
+      expect(screen.getByText("Automático")).toBeTruthy()
+      fireEvent.change(screen.getByLabelText("Temperatura interna (potenciômetro)"), { target: { value: "5" } })
+      expect(JSON.parse(localStorage.getItem("fermentador.sim")).auto).toBe(false)
+      expect(screen.queryByText("Automático")).toBeNull()
+      delete window.matchMedia
+    })
   })
 })

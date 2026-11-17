@@ -85,9 +85,36 @@ select:focus-visible {
   box-shadow:
     0 0 0 2px #3a3f4a,
     0 30px 60px rgba(15, 23, 42, 0.35);
-  transform: scale(var(--scale, 1));
   flex-shrink: 0;
 }
+
+/* celular (e o circuito ao lado, no Modo dev) encolhem juntos quando a janela é baixa */
+.stage-row {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+  transform: scale(var(--scale, 1));
+}
+
+/* circuito simulado (Modo dev) */
+.circuit {
+  width: 460px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.circuit-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 4px;
+}
+
 
 /* botões laterais */
 .phone::before,
@@ -168,6 +195,9 @@ select:focus-visible {
     background: var(--bg);
     place-items: stretch;
   }
+  .stage-row {
+    display: contents;
+  }
   .phone {
     width: 100%;
     height: 100dvh;
@@ -175,7 +205,6 @@ select:focus-visible {
     border-radius: 0;
     background: none;
     box-shadow: none;
-    transform: none;
   }
   .phone::before,
   .phone::after,

@@ -1,5 +1,8 @@
 // Placa virtual: fala o mesmo protocolo e roda a mesma lógica de controle do firmware.
-// Serve para desenvolver e testar o app sem hardware (Developer Mode).
+// Serve para desenvolver, testar e demonstrar o app sem hardware (Modo dev).
+//
+// Em modo `manual` ela se comporta como o circuito real: a temperatura da câmara é a do potenciômetro
+// e o ambiente é o do NTC, fixo. As saídas (resistência e resfriador) NÃO mudam a câmara.
 import { controllerUpdate, initialControlState } from "../domain/controller.js"
 
 const SP_RANGE = [0, 40]
@@ -15,19 +18,22 @@ export class DeviceSim {
   constructor(opts = {}) {
     this.chamber = opts.chamber ?? 22
     this.baseAmbient = opts.ambient ?? 24
+    this.manual = opts.manual ?? false
   }
 
   get ambient() {
-    return this.baseAmbient + 1.5 * Math.sin(this.elapsedS / 600)
+    return this.manual ? this.baseAmbient : this.baseAmbient + 1.5 * Math.sin(this.elapsedS / 600)
   }
 
   /** Avança a física `dtS` segundos e roda o controle, como o loop() do firmware. */
   step(dtS, nowMs) {
     this.elapsedS += dtS
-    const leak = (this.ambient - this.chamber) * 0.0008
-    const heat = this.state.heating ? 0.012 : 0
-    const cool = this.state.cooling ? 0.01 : 0
-    this.chamber += dtS * (leak + heat - cool)
+    if (!this.manual) {
+      const leak = (this.ambient - this.chamber) * 0.0008
+      const heat = this.state.heating ? 0.012 : 0
+      const cool = this.state.cooling ? 0.01 : 0
+      this.chamber += dtS * (leak + heat - cool)
+    }
     this.state = this.enabled
       ? controllerUpdate(this.cfg, this.state, this.chamber, this.ambient, nowMs)
       : initialControlState()

@@ -8,6 +8,8 @@ import BatchPage from "./pages/BatchPage.jsx"
 import TemperaturePage from "./pages/TemperaturePage.jsx"
 import LogPage from "./pages/LogPage.jsx"
 import SettingsPage from "./pages/SettingsPage.jsx"
+import CircuitPanel from "./ui/CircuitPanel.jsx"
+import { useDesktop } from "./ui/useMediaQuery.js"
 
 const TABS = [
   { id: "home", label: "Início", Icon: IconHome },
@@ -65,6 +67,8 @@ export default function App() {
   const [confirm, setConfirm] = useState(null)
   const [tabKey, setTabKey] = useState(0) // muda ao tocar numa aba: ela volta ao começo (ex.: lista de lotes)
   const scale = useFrameScale()
+  const desktop = useDesktop()
+  const showCircuit = desktop && f.settings.mode === "dev"
 
   const conn = connectionInfo(f)
   const title = TABS.find((t) => t.id === nav).label
@@ -72,7 +76,8 @@ export default function App() {
 
   return (
     <div className="stage">
-      <div className="phone" style={{ "--scale": scale }}>
+      <div className="stage-row" style={{ "--scale": scale }}>
+      <div className="phone">
         <div className="screen">
           <div className="island" />
           <StatusBar />
@@ -118,6 +123,8 @@ export default function App() {
 
           <div className="home-indicator" />
         </div>
+      </div>
+      {showCircuit && <CircuitPanel f={f} />}
       </div>
     </div>
   )

@@ -55,3 +55,32 @@ export function IconLog({ active }) {
     </svg>
   )
 }
+
+const small = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": true }
+export const IconPause = () => (
+  <svg {...small}>
+    <rect x="6" y="5" width="4" height="14" rx="1.2" />
+    <rect x="14" y="5" width="4" height="14" rx="1.2" />
+  </svg>
+)
+export const IconPlay = () => (
+  <svg {...small}>
+    <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" />
+  </svg>
+)
+export const IconSkip = () => (
+  <svg {...small}>
+    <path d="M5 5.5v13a1 1 0 0 0 1.5.86l8.5-6.5a1 1 0 0 0 0-1.72L6.5 4.64A1 1 0 0 0 5 5.5Z" />
+    <rect x="16.5" y="5" width="3" height="14" rx="1.2" />
+  </svg>
+)
+export const IconStop = () => (
+  <svg {...small}>
+    <rect x="6" y="6" width="12" height="12" rx="2" />
+  </svg>
+)
+export const IconSim = () => (
+  <svg {...small} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 12c2.5-7 4.5-7 7 0s4.5 7 7 0 2.5-5 4-6" />
+  </svg>
+)

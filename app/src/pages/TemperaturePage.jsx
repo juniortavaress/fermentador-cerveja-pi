@@ -18,7 +18,7 @@ function LiveTemperature({ f }) {
   const data = sliceRange(f.history, f.now, RANGES[range])
   const chartData = convertPoints(downsample(data), unit).map((p) => ({
     ...p,
-    setpoint: running && p.t >= run.startedAt ? p.setpoint : undefined,
+    setpoint: running && p.t >= (f.activeRecord?.startedAt ?? run.startedAt) ? p.setpoint : undefined,
   }))
   const s = stats(data)
   const fmt = (v) => (v == null ? "—" : `${fmtTemp(v, unit)} °${unit}`)

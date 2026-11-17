@@ -1,5 +1,7 @@
 import { Card, Segmented, Switch } from "../ui/primitives.jsx"
 import { fmtDelta } from "../domain/units.js"
+import { setSimControl } from "../transport/simControl.js"
+import { useSimControl } from "../ui/useSimControl.js"
 import { connectionInfo } from "../ui/connection.js"
 
 export default function SettingsPage({ f }) {
@@ -7,6 +9,7 @@ export default function SettingsPage({ f }) {
   const dev = settings.mode === "dev"
   const running = f.run !== null
   const conn = connectionInfo(f)
+  const sim = useSimControl()
   const connected = status === "connected"
   const canConnect = dev || f.serialSupported
   const tone = { ok: "green", warn: "amber", off: "" }[conn.tone]
@@ -64,6 +67,19 @@ export default function SettingsPage({ f }) {
             <Segmented options={[["C", "°C"], ["F", "°F"]]} value={settings.unit} onChange={(unit) => f.updateSettings({ unit })} />
           </div>
         </div>
+      </Card>
+
+      <Card className="flush">
+        <div className="row" style={{ padding: "14px 16px", borderBottom: dev ? "1px solid #F1F2F4" : "none" }}>
+          <p style={{ fontWeight: 600 }}>Modo dev</p>
+          <Switch label="Modo dev" checked={dev} onChange={() => f.setMode(dev ? "live" : "dev")} disabled={running} />
+        </div>
+        {dev && (
+          <div className="row" style={{ padding: "14px 16px" }}>
+            <p style={{ fontWeight: 600 }}>Simulação automática</p>
+            <Switch label="Simulação automática" checked={sim.auto} onChange={() => setSimControl({ auto: !sim.auto })} />
+          </div>
+        )}
       </Card>
     </>
   )

@@ -4,6 +4,8 @@ import { formatDuration } from "../domain/format.js"
 import { fmtDelta, fmtTemp, fromUnit, toUnit } from "../domain/units.js"
 import { Card, useEscapeKey } from "../ui/primitives.jsx"
 import { DEFAULT_SETTINGS } from "../state/defaults.js"
+import { setSimControl } from "../transport/simControl.js"
+import { IconSim } from "../ui/icons.jsx"
 
 const HOUR_MS = 3_600_000
 const TEMP_MAX_C = 40 // a placa recusa set point acima disso
@@ -350,9 +352,17 @@ function BatchMenu({ f, batch, onClose, onEdit, go, askConfirm }) {
   const runningOther = f.run !== null && !runningThis
   const connected = f.status === "connected"
   const canStart = !f.run && connected
+  const dev = f.settings.mode === "dev"
   const startHint = runningThis ? null : runningOther ? "Outra fermentação em andamento" : !connected ? "Conecte a placa em Ajustes" : null
 
   const start = () => {
+    f.startBatch(batch.id)
+    onClose()
+    go("home")
+  }
+  /** Modo dev: inicia a fermentação e deixa a simulação mover a câmara e o ambiente sozinha. */
+  const simulate = () => {
+    setSimControl({ auto: true })
     f.startBatch(batch.id)
     onClose()
     go("home")
@@ -384,6 +394,11 @@ function BatchMenu({ f, batch, onClose, onEdit, go, askConfirm }) {
               </p>
             )}
           </div>
+          {dev && (
+            <button className="btn ghost" disabled={!canStart} onClick={simulate}>
+              <IconSim /> Simular
+            </button>
+          )}
           <button className="btn ghost" disabled={runningThis} onClick={() => { onClose(); onEdit() }}>
             Editar
           </button>

@@ -442,3 +442,62 @@ describe("receitas prontas", () => {
     expect(second.result.current.batches.map((b) => b.id)).not.toContain("base-saison")
   })
 })
+
+describe("pausar a fermentação", () => {
+  const demo = async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    const hook = await setup()
+    act(() => hook.result.current.startBatch("exemplo-apa")) // etapas de 15 s
+    return hook
+  }
+
+  it("pausada, a etapa não acaba; ao retomar continua de onde parou", async () => {
+    const { result } = await demo()
+    await advance(5000) // 5 s da 1ª etapa
+    act(() => result.current.pauseBatch())
+    expect(result.current.run.pausedAt).toBeTruthy()
+    await advance(60_000) // 1 min parada: passaria por várias etapas se andasse
+    expect(result.current.run.stageIndex).toBe(0)
+    act(() => result.current.resumeBatch())
+    expect(result.current.run.pausedAt).toBeUndefined()
+    await advance(8000) // faltavam ~10 s
+    expect(result.current.run.stageIndex).toBe(0)
+    await advance(4000)
+    expect(result.current.run.stageIndex).toBe(1)
+    const events = result.current.log.map((e) => e.event)
+    expect(events).toContain("Fermentação pausada")
+    expect(events).toContain("Fermentação retomada")
+  })
+
+  it("pausada, a placa continua mantendo a temperatura da etapa e não dá para pular", async () => {
+    const { result } = await demo()
+    await advance(3000)
+    act(() => result.current.pauseBatch())
+    await advance(4000)
+    expect(result.current.telemetry.active).toBe(true) // a placa segue controlando
+    expect(result.current.telemetry.setpoint).toBe(24) // alvo da 1ª etapa
+    act(() => result.current.skipCurrentStage())
+    expect(result.current.run.stageIndex).toBe(0) // pular fica desativado enquanto pausada
+  })
+
+  it("encerrar estando pausada fecha o registro como interrompida", async () => {
+    const { result } = await demo()
+    await advance(3000)
+    act(() => result.current.pauseBatch())
+    act(() => result.current.stopBatch())
+    expect(result.current.run).toBeNull()
+    expect(result.current.records.at(-1).status).toBe("stopped")
+  })
+
+  it("a pausa sobrevive a recarregar a página", async () => {
+    const first = await demo()
+    await advance(3000)
+    act(() => first.result.current.pauseBatch())
+    first.unmount()
+    const second = renderHook(() => useFermenter())
+    await advance(40_000)
+    expect(second.result.current.run.pausedAt).toBeTruthy()
+    expect(second.result.current.run.stageIndex).toBe(0)
+  })
+})
