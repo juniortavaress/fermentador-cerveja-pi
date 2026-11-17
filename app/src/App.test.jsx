@@ -232,9 +232,12 @@ describe("App", () => {
     tab("Lotes")
     const menu = () => fireEvent.click(screen.getByLabelText("Opções de Exemplo · Pilsen"))
 
-    // editar abre o lote já em modo de edição
+    // "Editar" abre o lote na tela das etapas; só ao tocar em "Editar" lá dentro os campos ficam editáveis
     menu()
-    click("Editar etapas")
+    click("Editar")
+    expect(screen.getByText("Etapas da receita")).toBeTruthy()
+    expect(screen.queryByText("Salvar etapas")).toBeNull()
+    click("Editar")
     expect(screen.getByText("Salvar etapas")).toBeTruthy()
     tab("Lotes")
 
@@ -268,7 +271,7 @@ describe("App", () => {
     await advance(300)
     tab("Lotes")
     fireEvent.click(screen.getByLabelText("Opções de Exemplo · American IPA"))
-    expect(screen.getByText("Editar etapas").closest("button").disabled).toBe(true)
+    expect(screen.getByText("Editar").closest("button").disabled).toBe(true)
     expect(screen.getByText("Apagar lote").closest("button").disabled).toBe(true)
   })
 
@@ -340,7 +343,7 @@ describe("App", () => {
     expect(screen.queryByRole("dialog")).toBeNull()
 
     open()
-    fireEvent.click(screen.getByText("Editar etapas").closest(".sheet")) // clicar dentro não fecha
+    fireEvent.click(screen.getByText("Editar").closest(".sheet")) // clicar dentro não fecha
     expect(screen.getByRole("dialog")).toBeTruthy()
   })
 

@@ -28,11 +28,83 @@ export const DEMO_BATCH = {
   ],
 }
 
-export const DEFAULT_BATCHES = [DEMO_BATCH]
+const days = (n) => n * 24
 
-/** Exemplos antigos, removidos da lista na versão 2. A versão 4 atualizou o lote de demonstração (etapa de 35 °C, resfriador sem pausa). */
+/** Receitas prontas para começar: estilos clássicos, com as etapas e temperaturas típicas de cada um. */
+export const SAMPLE_BATCHES = [
+  {
+    id: "base-american-ipa",
+    name: "American IPA",
+    style: "Ale",
+    yeast: "Safale US-05",
+    stages: [
+      { name: "Fermentação", durationHours: days(5), temp: 18.5 },
+      { name: "Descanso de diacetil", durationHours: days(2), temp: 21 },
+      { name: "Dry hop", durationHours: days(3), temp: 19 },
+      { name: "Cold crash", durationHours: days(2), temp: 2 },
+    ],
+  },
+  {
+    id: "base-pilsen",
+    name: "Pilsen",
+    style: "Lager",
+    yeast: "Saflager W-34/70",
+    stages: [
+      { name: "Fermentação", durationHours: days(7), temp: 10 },
+      { name: "Descanso de diacetil", durationHours: days(2), temp: 16 },
+      { name: "Maturação a frio", durationHours: days(14), temp: 2 },
+    ],
+  },
+  {
+    id: "base-weissbier",
+    name: "Weissbier",
+    style: "Trigo",
+    yeast: "Safbrew WB-06",
+    stages: [
+      { name: "Fermentação", durationHours: days(4), temp: 20 },
+      { name: "Maturação", durationHours: days(3), temp: 14 },
+      { name: "Cold crash", durationHours: days(2), temp: 3 },
+    ],
+  },
+  {
+    id: "base-dry-stout",
+    name: "Dry Stout",
+    style: "Stout",
+    yeast: "Safale S-04",
+    stages: [
+      { name: "Fermentação", durationHours: days(6), temp: 18 },
+      { name: "Maturação", durationHours: days(7), temp: 12 },
+    ],
+  },
+  {
+    id: "base-belgian-tripel",
+    name: "Belgian Tripel",
+    style: "Belga",
+    yeast: "Safbrew T-58",
+    stages: [
+      { name: "Fermentação", durationHours: days(3), temp: 20 },
+      { name: "Finalização", durationHours: days(5), temp: 24 },
+      { name: "Maturação a frio", durationHours: days(14), temp: 5 },
+    ],
+  },
+  {
+    id: "base-saison",
+    name: "Saison",
+    style: "Belga",
+    yeast: "Belle Saison",
+    stages: [
+      { name: "Fermentação", durationHours: days(2), temp: 24 },
+      { name: "Finalização quente", durationHours: days(5), temp: 30 },
+      { name: "Maturação a frio", durationHours: days(7), temp: 4 },
+    ],
+  },
+]
+
+export const DEFAULT_BATCHES = [DEMO_BATCH, ...SAMPLE_BATCHES]
+
+/** Exemplos antigos, removidos da lista na versão 2. A versão 4 atualizou o lote de demonstração (etapa de 35 °C, resfriador sem pausa); a 5 trouxe as receitas prontas (SAMPLE_BATCHES). */
 export const LEGACY_EXAMPLE_IDS = ["exemplo-ipa", "exemplo-pilsen"]
-export const SEED_VERSION = "4"
+export const SEED_VERSION = "5"
 
 // Um ponto a cada segundo (a placa manda 1 por segundo; 900 ms evita perder um por atraso).
 export const HISTORY_INTERVAL_MS = 900

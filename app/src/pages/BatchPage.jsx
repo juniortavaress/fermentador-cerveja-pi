@@ -212,14 +212,14 @@ function NewBatchForm({ onCreate, unit }) {
 }
 
 // ── Detalhe do lote ─────────────────────────────────────────────────────────
-function BatchDetail({ f, batch, startEditing = false, go }) {
+function BatchDetail({ f, batch, go }) {
   const { run } = f
   const runningThis = run !== null && run.batchId === batch.id
   const runningOther = run !== null && !runningThis
   const connected = f.status === "connected"
   const unit = f.settings.unit
-  const [editing, setEditing] = useState(startEditing && !(f.run && f.run.batchId === batch.id))
-  const [draft, setDraft] = useState(() => (startEditing ? batch.stages.map((s) => toEditable(s, f.settings.unit)) : []))
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState([])
   const [editError, setEditError] = useState("")
 
   const startEdit = () => {
@@ -385,7 +385,7 @@ function BatchMenu({ f, batch, onClose, onEdit, go, askConfirm }) {
             )}
           </div>
           <button className="btn ghost" disabled={runningThis} onClick={() => { onClose(); onEdit() }}>
-            Editar etapas
+            Editar
           </button>
           <button className="btn ghost-red" disabled={runningThis} onClick={remove}>
             Apagar lote
@@ -415,7 +415,7 @@ export default function BatchPage({ f, go, askConfirm }) {
 
   const detail = view.name === "detail" ? f.batches.find((b) => b.id === view.id) : null
   if (detail) {
-    return <BatchDetail key={`${detail.id}-${view.edit ? "e" : "v"}`} f={f} batch={detail} startEditing={!!view.edit} go={go} />
+    return <BatchDetail key={detail.id} f={f} batch={detail} go={go} />
   }
 
   return (
@@ -463,7 +463,7 @@ export default function BatchPage({ f, go, askConfirm }) {
           go={go}
           askConfirm={askConfirm}
           onClose={() => setMenuId(null)}
-          onEdit={() => setView({ name: "detail", id: menuId, edit: true })}
+          onEdit={() => setView({ name: "detail", id: menuId })}
         />
       )}
     </>

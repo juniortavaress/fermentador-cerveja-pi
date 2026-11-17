@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useFermenter } from "./useFermenter.js"
 import { SimulatorTransport } from "../transport/simulator.js"
 import { LONG_BATCHES as LONG_BATCHES_FOR_MIGRATION, seedLongBatches } from "./testFixtures.js"
-import { DEMO_BATCH } from "./defaults.js"
+import { DEMO_BATCH, SAMPLE_BATCHES } from "./defaults.js"
 
 const HOUR = 3_600_000
 
@@ -249,7 +249,7 @@ describe("exemplo de demonstração", () => {
     localStorage.clear()
     localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
     const { result } = await setup()
-    expect(result.current.batches.map((b) => b.id)).toEqual(["exemplo-apa"])
+    expect(result.current.batches.map((b) => b.id)).toEqual(["exemplo-apa", ...SAMPLE_BATCHES.map((b) => b.id)])
     expect(result.current.selectedBatch.id).toBe("exemplo-apa")
   })
 
@@ -260,7 +260,12 @@ describe("exemplo de demonstração", () => {
     localStorage.setItem("fermentador.batches", JSON.stringify([...LONG_BATCHES_FOR_MIGRATION, meu]))
     localStorage.setItem("fermentador.selected", JSON.stringify("exemplo-ipa"))
     const { result } = await setup()
-    expect(result.current.batches.map((b) => b.id).sort()).toEqual(["exemplo-apa", "meu"])
+    const ids = result.current.batches.map((b) => b.id)
+    expect(ids).toContain("exemplo-apa")
+    expect(ids).toContain("meu")
+    expect(ids).not.toContain("exemplo-ipa")
+    expect(ids).not.toContain("exemplo-pilsen")
+    expect(ids).toContain("base-pilsen") // e ganhou as receitas prontas
     expect(result.current.selectedBatch.id).toBe("exemplo-apa")
   })
 
@@ -270,7 +275,8 @@ describe("exemplo de demonstração", () => {
     localStorage.setItem("fermentador.seed", "3") // mesmo já migrado, o nome é corrigido
     localStorage.setItem("fermentador.batches", JSON.stringify([{ ...DEMO_BATCH, name: "Exemplo · American Pale Ale" }]))
     const { result } = await setup()
-    expect(result.current.batches.map((b) => b.name)).toEqual(["American Pale Ale"])
+    expect(result.current.batches[0].name).toBe("American Pale Ale")
+    expect(result.current.batches.some((b) => /^exemplo/i.test(b.name))).toBe(false)
   })
 
   it("a demonstração roda sozinha pelas 5 etapas e termina em 2 min", async () => {
@@ -400,5 +406,39 @@ describe("histórico de fermentações", () => {
     await advance(100)
     expect(second.result.current.records).toHaveLength(1)
     expect(second.result.current.records[0].points.length).toBeGreaterThan(100)
+  })
+})
+
+describe("receitas prontas", () => {
+  it("são lotes de estilos reais, com etapas válidas e temperaturas aceitas pela placa", () => {
+    expect(SAMPLE_BATCHES.map((b) => b.name)).toEqual(["American IPA", "Pilsen", "Weissbier", "Dry Stout", "Belgian Tripel", "Saison"])
+    const ids = SAMPLE_BATCHES.map((b) => b.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const b of SAMPLE_BATCHES) {
+      expect(b.name).not.toMatch(/exemplo/i)
+      expect(b.stages.length).toBeGreaterThanOrEqual(2)
+      for (const s of b.stages) {
+        expect(s.name).toBeTruthy()
+        expect(s.durationHours).toBeGreaterThan(0)
+        expect(s.temp).toBeGreaterThanOrEqual(0)
+        expect(s.temp).toBeLessThanOrEqual(40) // limite da placa
+      }
+    }
+  })
+
+  it("quem já tem lotes recebe as receitas prontas uma vez; o que apagar depois não volta", async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    localStorage.setItem("fermentador.seed", "4")
+    const meu = { id: "meu", name: "Meu lote", style: "x", yeast: "y", stages: [{ name: "A", durationHours: 1, temp: 18 }] }
+    localStorage.setItem("fermentador.batches", JSON.stringify([DEMO_BATCH, meu]))
+    const first = await setup()
+    const ids = first.result.current.batches.map((b) => b.id)
+    expect(ids.slice(0, 2)).toEqual(["exemplo-apa", "meu"]) // os do usuário continuam na frente
+    expect(ids).toContain("base-saison")
+    act(() => first.result.current.deleteBatch("base-saison"))
+    first.unmount()
+    const second = await setup() // reabre: já migrou, não recria
+    expect(second.result.current.batches.map((b) => b.id)).not.toContain("base-saison")
   })
 })

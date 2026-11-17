@@ -22,6 +22,7 @@ import {
   DEFAULT_BATCHES,
   DEFAULT_SETTINGS,
   DEMO_BATCH,
+  SAMPLE_BATCHES,
   HISTORY_COARSE_MS,
   HISTORY_FINE_MS,
   HISTORY_INTERVAL_MS,
@@ -321,6 +322,8 @@ export function useFermenter() {
         next = next.map((b) => (b.id === DEMO_BATCH.id ? { ...DEMO_BATCH, ...(b.hysteresis != null ? { hysteresis: b.hysteresis } : {}) } : b))
         next = next.filter((b) => !legacy(b.id))
         if (!next.some((b) => b.id === DEMO_BATCH.id)) next = [DEMO_BATCH, ...next]
+        // versão 5: receitas prontas, só as que ainda não existem (nunca mexe nos lotes do usuário)
+        next = [...next, ...SAMPLE_BATCHES.filter((s) => !next.some((b) => b.id === s.id))]
       }
       return next
     })
