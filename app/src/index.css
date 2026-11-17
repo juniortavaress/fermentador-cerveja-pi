@@ -751,3 +751,51 @@ select.input {
   opacity: 0.35;
   cursor: not-allowed;
 }
+
+/* progresso da fermentação: uma barra por etapa */
+.seg-row {
+  display: flex;
+  gap: 4px;
+}
+.seg {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: center;
+}
+.seg-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+.seg-bar > div {
+  height: 100%;
+  background: var(--blue);
+}
+.seg-bar[data-state="active"] {
+  background: var(--blue-100);
+}
+.seg-name,
+.seg-temp {
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #9ca3af;
+}
+.seg-name {
+  font-weight: 600;
+  margin-top: 2px;
+  letter-spacing: 0.04em;
+}
+.seg-name.on,
+.seg-temp.on {
+  color: var(--blue-dark);
+}
+.seg-temp {
+  font-variant-numeric: tabular-nums;
+}

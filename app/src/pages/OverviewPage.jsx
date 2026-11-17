@@ -1,5 +1,6 @@
-import { stageFraction, stageRemainingMs } from "../domain/engine.js"
+import { HOUR_MS, stageFraction, stageRemainingMs, totalHours } from "../domain/engine.js"
 import { formatDuration } from "../domain/format.js"
+import { summarize } from "../domain/records.js"
 import { fmtTemp } from "../domain/units.js"
 import { Card } from "../ui/primitives.jsx"
 import RunChart from "./RunChart.jsx"
@@ -70,6 +71,72 @@ function RunCard({ f, askConfirm }) {
   )
 }
 
+/** Uma barra dividida por etapa: as concluídas cheias, a atual parcial, as próximas vazias. */
+function ProgressCard({ f }) {
+  const { run, runBatch: batch, now } = f
+  const unit = f.settings.unit
+  const totalMs = totalHours(batch) * HOUR_MS
+  const elapsed = Math.min(Math.max(now - run.startedAt, 0), totalMs)
+
+  return (
+    <Card>
+      <p className="label" style={{ marginBottom: 12 }}>
+        Progresso da fermentação
+      </p>
+      <div className="seg-row">
+        {batch.stages.map((st, i) => {
+          const done = i < run.stageIndex
+          const active = i === run.stageIndex
+          const fill = done ? 1 : active ? stageFraction(run, batch, now) : 0
+          return (
+            <div key={`${st.name}-${i}`} className="seg">
+              <div className="seg-bar" data-state={done ? "done" : active ? "active" : "pending"}>
+                <div style={{ width: `${fill * 100}%` }} />
+              </div>
+              <span className={`seg-name ${done || active ? "on" : ""}`} title={st.name}>
+                {st.name.trim().slice(0, 4).toUpperCase()}
+              </span>
+              <span className={`seg-temp ${active ? "on" : ""}`}>
+                {fmtTemp(st.temp, unit)} °{unit}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+      <div className="row" style={{ marginTop: 14 }}>
+        <p className="small">Decorrido {formatDuration(elapsed)}</p>
+        <p className="small">
+          Duração total <b style={{ color: "#20242B" }}>{formatDuration(totalMs)}</b>
+        </p>
+      </div>
+    </Card>
+  )
+}
+
+/** Mínima e máxima desta fermentação e o que a placa está acionando agora. */
+function RunStats({ f }) {
+  const t = f.telemetry
+  const unit = f.settings.unit
+  const s = summarize(f.activeRecord?.points ?? [])
+  const fmt = (v) => (v == null ? "—" : `${fmtTemp(v, unit)} °${unit}`)
+  const tiles = [
+    ["Temp. mín.", fmt(s?.min)],
+    ["Temp. máx.", fmt(s?.max)],
+    ["Peltier", t ? (t.cooling ? "Resfriando" : "Inativo") : "—"],
+    ["Resistência", t ? (t.heating ? "Aquecendo" : "Inativa") : "—"],
+  ]
+  return (
+    <div className="stat-grid">
+      {tiles.map(([label, value]) => (
+        <div className="stat" key={label}>
+          <p className="small">{label}</p>
+          <b>{value}</b>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function OverviewPage({ f, go, askConfirm }) {
   const t = f.telemetry
   const unit = f.settings.unit
@@ -100,7 +167,10 @@ export default function OverviewPage({ f, go, askConfirm }) {
 
       {/* Fermentação */}
       {running ? (
-        <RunCard f={f} askConfirm={askConfirm} />
+        <>
+          <RunCard f={f} askConfirm={askConfirm} />
+          <ProgressCard f={f} />
+        </>
       ) : (
         <Card className="idle-card">
           <div className="idle-art" aria-hidden="true">
@@ -125,6 +195,9 @@ export default function OverviewPage({ f, go, askConfirm }) {
 
       {/* Gráfico: só com fermentação em andamento */}
       {running && <RunChart f={f} />}
+
+      {/* Mínima, máxima e o que a placa está acionando */}
+      {running && <RunStats f={f} />}
     </>
   )
 }

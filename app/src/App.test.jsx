@@ -379,4 +379,39 @@ describe("App", () => {
     fireEvent.click(screen.getByText("Ao vivo ›"))
     expect(screen.queryByText(/Voltou/)).toBeNull()
   })
+
+  it("com fermentação rodando, o Início mostra o progresso por etapa, a duração total e os indicadores", async () => {
+    render(<App />)
+    await advance(2000)
+    expect(screen.queryByText("Progresso da fermentação")).toBeNull() // sem fermentação, nada disso aparece
+    expect(screen.queryByText("Temp. mín.")).toBeNull()
+
+    tab("Lotes")
+    click("Exemplo · American IPA")
+    click(/Iniciar fermentação/)
+    await advance(8000)
+
+    expect(screen.getByText("Progresso da fermentação")).toBeTruthy()
+    // uma barra por etapa, com nome e temperatura
+    // só as 4 primeiras letras, em maiúsculo e sem reticências
+    for (const name of ["LAG", "PRIM", "SECU", "MATU"]) expect(screen.getAllByText(name).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/…|\.\.\./)).toBeNull()
+    for (const temp of ["20,0 °C", "18,5 °C", "17,0 °C", "4,0 °C"]) expect(screen.getAllByText(temp).length).toBeGreaterThan(0)
+    // 12 + 72 + 48 + 96 = 228 h = 9 d 12 h
+    expect(screen.getByText("9 d 12 h")).toBeTruthy()
+    expect(screen.getByText(/Duração total/)).toBeTruthy()
+    expect(screen.getByText(/Decorrido/)).toBeTruthy()
+
+    for (const label of ["Temp. mín.", "Temp. máx.", "Peltier", "Resistência"]) expect(screen.getByText(label)).toBeTruthy()
+    expect(screen.getByText("Peltier").parentElement.textContent).toMatch(/Resfriando|Inativo/)
+    expect(screen.getByText("Resistência").parentElement.textContent).toMatch(/Aquecendo|Inativa/)
+    expect(screen.getByText("Temp. mín.").parentElement.textContent).toMatch(/\d+,\d °C/) // já tem leituras desta fermentação
+
+    // parar: tudo some de novo
+    click("Parar")
+    click("Parar fermentação")
+    await advance(300)
+    expect(screen.queryByText("Progresso da fermentação")).toBeNull()
+    expect(screen.queryByText("Temp. mín.")).toBeNull()
+  })
 })
