@@ -501,3 +501,56 @@ describe("pausar a fermentação", () => {
     expect(second.result.current.run.stageIndex).toBe(0)
   })
 })
+
+describe("dados do Modo dev separados dos da placa real", () => {
+  it("as leituras, eventos e fermentações simuladas não aparecem com o Modo dev desligado (e voltam ao ligar)", async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    const { result } = await setup()
+    act(() => result.current.startBatch("exemplo-apa"))
+    await advance(20_000)
+    act(() => result.current.stopBatch())
+    expect(result.current.history.length).toBeGreaterThan(10)
+    expect(result.current.records).toHaveLength(1)
+    expect(result.current.log.length).toBeGreaterThan(0)
+
+    await act(async () => {
+      await result.current.setMode("live") // desliga o Modo dev
+    })
+    await advance(100)
+    expect(result.current.history).toEqual([]) // "Ao vivo" não herda os pontos simulados
+    expect(result.current.records).toEqual([])
+    expect(result.current.log).toEqual([])
+    expect(result.current.activeRecord).toBeNull()
+    expect(result.current.telemetry).toBeNull()
+
+    await act(async () => {
+      await result.current.setMode("dev") // liga de novo: os dados simulados continuam lá
+    })
+    await advance(2000)
+    expect(result.current.records).toHaveLength(1)
+    expect(result.current.history.length).toBeGreaterThan(10)
+  })
+
+  it("o que a placa real grava não vai para o Modo dev", async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "live" }))
+    localStorage.setItem("fermentador.history", JSON.stringify([{ t: Date.now() - 1000, actual: 18, setpoint: 18, ambient: 22 }]))
+    localStorage.setItem("fermentador.log", JSON.stringify([{ id: 1, at: Date.now(), event: "Dispositivo conectado", value: "USB", severity: "info" }]))
+    const { result } = await setup()
+    expect(result.current.history).toHaveLength(1)
+    expect(result.current.log).toHaveLength(1)
+    await act(async () => {
+      await result.current.setMode("dev")
+    })
+    await advance(100)
+    expect(result.current.history).toEqual([]) // o Modo dev começa limpo
+    expect(result.current.log.some((e) => e.value === "USB")).toBe(false) // o evento da placa real não aparece aqui
+    await act(async () => {
+      await result.current.setMode("live")
+    })
+    await advance(100)
+    expect(result.current.history).toHaveLength(1) // a placa real continua como estava
+    expect(JSON.parse(localStorage.getItem("fermentador.history"))).toHaveLength(1)
+  })
+})

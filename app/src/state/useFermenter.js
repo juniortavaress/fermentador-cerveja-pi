@@ -45,10 +45,13 @@ export function useFermenter() {
   const [selectedId, setSelectedId] = usePersistentState(KEY + "selected", DEFAULT_BATCHES[0].id)
   const [run, setRun] = usePersistentState(KEY + "run", null)
   const [manualSp, setManualSp] = usePersistentState(KEY + "manualSp", null)
-  const [log, setLog] = usePersistentState(KEY + "log", [])
-  const [history, setHistory] = usePersistentState(KEY + "history", [])
-  const [records, setRecords] = usePersistentState(KEY + "records", []) // fermentações que já terminaram
-  const [activeRecord, setActiveRecord] = usePersistentState(KEY + "activeRecord", null) // a que está rodando
+  // Os dados do Modo dev (leituras, eventos e fermentações simuladas) ficam separados dos da placa real,
+  // senão as leituras simuladas apareceriam no "Ao vivo" e no histórico depois de desligar o Modo dev.
+  const data = settings.mode === "dev" ? KEY + "dev." : KEY
+  const [log, setLog] = usePersistentState(data + "log", [])
+  const [history, setHistory] = usePersistentState(data + "history", [])
+  const [records, setRecords] = usePersistentState(data + "records", []) // fermentações que já terminaram
+  const [activeRecord, setActiveRecord] = usePersistentState(data + "activeRecord", null) // a que está rodando
 
   const [status, setStatus] = useState("disconnected")
   const [statusDetail, setStatusDetail] = useState(null)
