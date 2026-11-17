@@ -190,12 +190,11 @@ export default function OverviewPage({ f, go, askConfirm }) {
         <Card className="idle-card">
           <div className="idle-art" aria-hidden="true">
             <svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#2563EB" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 10h24M22 10v10c-4 3-6 7-6 12v10l16 12 16-12V32c0-5-2-9-6-12V10" fill="#fff" />
-              <path d="M16 36h32" stroke="#93C5FD" />
-              <circle cx="27" cy="30" r="2.4" stroke="#93C5FD" />
-              <circle cx="36" cy="26" r="1.8" stroke="#93C5FD" />
-              <circle cx="38" cy="32" r="2.8" stroke="#93C5FD" />
-              <path d="M32 54v4" />
+              <path d="M20 10h24M22 10v10c-4 3-6 7-6 12v16a6 6 0 0 0 6 6h20a6 6 0 0 0 6-6V32c0-5-2-9-6-12V10" fill="#fff" />
+              <path d="M16 32h32" stroke="#93C5FD" />
+              <circle cx="27" cy="40" r="2.4" stroke="#93C5FD" />
+              <circle cx="36" cy="37" r="1.8" stroke="#93C5FD" />
+              <circle cx="38" cy="46" r="2.8" stroke="#93C5FD" />
             </svg>
           </div>
           <p className="h2" style={{ fontSize: 20 }}>Pronto para fermentar</p>

@@ -122,3 +122,42 @@ describe("simulação automática", () => {
     vi.useRealTimers()
   })
 })
+
+describe("o automático dura só a fermentação simulada", () => {
+  it("desliga sozinho quando a placa volta à espera (fermentação terminou ou foi encerrada)", async () => {
+    vi.useFakeTimers()
+    setSimControl({ chamber: 10, ambient: 26, auto: true })
+    const t = new SimulatorTransport()
+    await t.connect()
+    await t.send("RUN 1")
+    await t.send("SP 20")
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(getSimControl().auto).toBe(true) // rodando
+    await t.send("RUN 0") // encerrou
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(getSimControl().auto).toBe(false)
+    await t.disconnect()
+    vi.useRealTimers()
+  })
+
+  it("ligar o automático antes da placa receber RUN 1 não o desliga", async () => {
+    vi.useFakeTimers()
+    setSimControl({ auto: true })
+    const t = new SimulatorTransport()
+    await t.connect()
+    await vi.advanceTimersByTimeAsync(3000) // ainda em espera, como no instante do "Simular"
+    expect(getSimControl().auto).toBe(true)
+    await t.disconnect()
+    vi.useRealTimers()
+  })
+
+  it("desconectar (ou sair do Modo dev) desliga o automático", async () => {
+    vi.useFakeTimers()
+    setSimControl({ auto: true })
+    const t = new SimulatorTransport()
+    await t.connect()
+    await t.disconnect()
+    expect(getSimControl().auto).toBe(false)
+    vi.useRealTimers()
+  })
+})

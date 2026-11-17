@@ -30,7 +30,7 @@ Feche o Monitor Serial da Arduino IDE antes de conectar: só um programa usa a p
 
 No computador o app aparece dentro de uma moldura de celular; num celular ocupa a tela toda.
 
-**Modo dev (sem o circuito).** No computador, em **Ajustes > Modo dev**, o app troca a placa por uma simulada e mostra o circuito ao lado do celular: o **potenciômetro** define a **temperatura interna** e o **NTC** o ambiente (fixo, definido por quem usa). A **mola** esquenta (laranja/vermelha) quando a resistência liga e a **ventoinha** gira quando o resfriador liga. Funciona em qualquer navegador (não precisa de Web Serial). No celular (sem o painel do circuito), o menu de três pontos do lote ganha **Simular**: inicia a fermentação e a simulação move sozinha a temperatura interna e a do ambiente; dá para desligar em **Ajustes > Simulação automática**.
+**Modo dev (sem o circuito).** No computador, em **Ajustes > Modo dev**, o app troca a placa por uma simulada e mostra o circuito ao lado do celular: o **potenciômetro** define a **temperatura interna** e o **NTC** o ambiente (fixo, definido por quem usa). A **mola** esquenta (laranja/vermelha) quando a resistência liga e a **ventoinha** gira quando o resfriador liga. Funciona em qualquer navegador (não precisa de Web Serial). No celular (sem o painel do circuito), o menu de três pontos do lote ganha **Simular**: inicia a fermentação e a simulação move sozinha a temperatura interna e a do ambiente; ela para sozinha quando a fermentação termina ou é encerrada.
 
 **Importante:** quem avança as etapas é o app. Ele precisa ficar aberto e conectado; se a página for fechada, ao reabrir ele recalcula em que etapa o lote deveria estar (o tempo vem do relógio). Com o ESP, essa lógica pode ir para a própria placa.
 

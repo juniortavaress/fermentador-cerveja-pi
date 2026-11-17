@@ -21,6 +21,7 @@ export class SimulatorTransport {
   }
 
   autoTicks = 0
+  wasEnabled = false // a placa já recebeu RUN 1 nesta simulação?
 
   /**
    * Lê o potenciômetro e o NTC do circuito simulado.
@@ -29,6 +30,12 @@ export class SimulatorTransport {
    */
   readCircuit() {
     let c = getSimControl()
+    // O automático vale só enquanto a fermentação simulada roda: ao terminar ou encerrar (placa volta à espera), desliga.
+    if (c.auto && this.wasEnabled && !this.sim.enabled) {
+      setSimControl({ auto: false })
+      c = getSimControl()
+    }
+    this.wasEnabled = this.sim.enabled
     if (c.auto) {
       this.autoTicks += 1
       const target = this.sim.enabled ? this.sim.cfg.setPoint : c.ambient // em espera, a câmara vai para o ambiente
@@ -63,6 +70,7 @@ export class SimulatorTransport {
   async disconnect() {
     if (this.timer) clearInterval(this.timer)
     this.timer = null
+    setSimControl({ auto: false }) // sai do Modo dev ou desconecta: a simulação automática para
     this.statusCbs.forEach((cb) => cb("disconnected"))
   }
 

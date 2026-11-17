@@ -433,7 +433,7 @@ describe("App", () => {
       expect(screen.queryByLabelText("Circuito simulado")).toBeNull()
       tab("Ajustes")
       expect(screen.getByRole("switch", { name: "Modo dev" }).getAttribute("aria-checked")).toBe("true")
-      expect(screen.getByRole("switch", { name: "Simulação automática" })).toBeTruthy()
+      expect(screen.queryByRole("switch", { name: "Simulação automática" })).toBeNull() // não existe mais: o Simular cuida disso
     })
 
     it("no computador, o Modo dev liga e desliga o circuito pelo interruptor em Ajustes", async () => {
@@ -539,7 +539,6 @@ describe("App", () => {
       tab("Ajustes")
       fireEvent.click(screen.getByRole("switch", { name: "Modo dev" })) // desliga
       await advance(300)
-      expect(screen.queryByRole("switch", { name: "Simulação automática" })).toBeNull()
       tab("Lotes")
       menu("Exemplo · Pilsen")
       expect(screen.queryByText("Simular")).toBeNull()
@@ -580,18 +579,22 @@ describe("App", () => {
       expect(screen.getByText("Simular").closest("button").disabled).toBe(true)
     })
 
-    it("a Simulação automática desliga pelos Ajustes", async () => {
+    it("a simulação automática para sozinha quando a fermentação é encerrada", async () => {
       render(<App />)
       await advance(2000)
       tab("Lotes")
       menu("Exemplo · American IPA")
       click("Simular")
-      await advance(500)
+      await advance(2500)
+      const auto = () => JSON.parse(localStorage.getItem("fermentador.sim")).auto
+      expect(auto()).toBe(true)
+      click("Pausar")
+      click("Encerrar")
+      click("Encerrar fermentação")
+      await advance(3000)
+      expect(auto()).toBe(false) // câmara e ambiente voltam a ficar como estão
       tab("Ajustes")
-      const sw = screen.getByRole("switch", { name: "Simulação automática" })
-      expect(sw.getAttribute("aria-checked")).toBe("true")
-      fireEvent.click(sw)
-      expect(JSON.parse(localStorage.getItem("fermentador.sim")).auto).toBe(false)
+      expect(screen.queryByText("Simulação automática")).toBeNull()
     })
 
     it("no computador, mexer num slider do circuito assume o controle (desliga o automático)", async () => {
