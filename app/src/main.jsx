@@ -8,3 +8,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <App />
   </React.StrictMode>,
 )
+
+// Deixa o app instalável e disponível sem internet (só no site publicado, não no `npm run dev`).
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* sem service worker o app funciona igual, só não abre offline */
+    })
+  })
+}
