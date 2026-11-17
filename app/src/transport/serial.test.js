@@ -93,7 +93,7 @@ describe("SerialTransport", () => {
     expect(statuses.at(-1)).toEqual(["disconnected", "Dispositivo desconectado."])
   })
 
-  it("porta ocupada gera erro claro e connect retorna false", async () => {
+  it("falha ao abrir a porta gera um erro curto e connect retorna false", async () => {
     const busy = makeFakePort({ failOpen: Object.assign(new Error("Failed to open serial port."), { name: "NetworkError" }) })
     installSerial({ requestPort: async () => busy.port, getPorts: async () => [] })
     transport = new SerialTransport()
@@ -101,7 +101,7 @@ describe("SerialTransport", () => {
     expect(await transport.connect()).toBe(false)
     const last = statuses.at(-1)
     expect(last[0]).toBe("error")
-    expect(last[1]).toMatch(/Porta ocupada/)
+    expect(last[1]).toBe("Falha ao conectar")
   })
 
   it("auto: sem porta autorizada não faz nada; com porta, reconecta sozinho", async () => {
@@ -128,7 +128,7 @@ describe("SerialTransport", () => {
     transport = new SerialTransport()
     listen()
     expect(await transport.connect()).toBe(false)
-    expect(statuses.at(-1)[1]).toMatch(/Chrome ou Edge/)
+    expect(statuses.at(-1)[1]).toBe("Conexão indisponível neste navegador")
   })
 
   it("enviar sem conexão lança erro", async () => {

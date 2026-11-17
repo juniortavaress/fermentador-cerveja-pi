@@ -3,6 +3,9 @@
 import { act, cleanup, renderHook } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useFermenter } from "./useFermenter.js"
+import { SimulatorTransport } from "../transport/simulator.js"
+import { LONG_BATCHES as LONG_BATCHES_FOR_MIGRATION, seedLongBatches } from "./testFixtures.js"
+import { DEMO_BATCH } from "./defaults.js"
 
 const HOUR = 3_600_000
 
@@ -22,6 +25,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   localStorage.clear()
   localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+  seedLongBatches()
 })
 
 afterEach(() => {
@@ -38,10 +42,10 @@ describe("conexão e leituras", () => {
     expect(result.current.log.map((e) => e.event)).toContain("Dispositivo conectado")
   })
 
-  it("guarda um ponto de histórico por minuto", async () => {
+  it("guarda um ponto de histórico por segundo", async () => {
     const { result } = await setup()
-    await advance(2 * 60_000)
-    expect(result.current.history.length).toBeGreaterThanOrEqual(2)
+    await advance(10_000)
+    expect(result.current.history.length).toBeGreaterThanOrEqual(10)
     expect(result.current.history[0]).toHaveProperty("actual")
   })
 
@@ -169,5 +173,232 @@ describe("lotes", () => {
     act(() => result.current.setManualSetpoint(10)) // ignorado: a etapa manda
     await advance(4000)
     expect(result.current.telemetry.setpoint).toBe(20)
+  })
+})
+
+describe("ajuste fino por lote", () => {
+  it("a placa recebe a tolerância do lote ao dar o play, e volta ao padrão ao parar", async () => {
+    const sent = []
+    const orig = SimulatorTransport.prototype.send
+    vi.spyOn(SimulatorTransport.prototype, "send").mockImplementation(function (line) {
+      sent.push(line.trim())
+      return orig.call(this, line)
+    })
+    const { result } = await setup()
+    act(() => result.current.createBatch({
+      name: "Fino", style: "x", yeast: "y", hysteresis: 1.5,
+      stages: [{ name: "Única", durationHours: 10, temp: 15 }],
+    }))
+    const id = result.current.batches.at(-1).id
+
+    sent.length = 0
+    act(() => result.current.startBatch(id))
+    await advance(1000)
+    expect(sent).toContain("H 1.5")
+
+    // mudar o ajuste com a fermentação rodando chega à placa
+    sent.length = 0
+    act(() => result.current.updateBatch(id, { hysteresis: 2 }))
+    await advance(1000)
+    expect(sent).toContain("H 2.0")
+
+    // parar: volta ao padrão geral (0,5 / 3 min)
+    sent.length = 0
+    act(() => result.current.stopBatch())
+    await advance(1000)
+    expect(sent).toContain("H 0.5")
+    expect(sent).toContain("MC 3.0")
+    vi.restoreAllMocks()
+  })
+})
+
+describe("espera sem fermentação", () => {
+  it("a placa fica em espera sem fermentação, liga ao dar o play e desliga ao parar", async () => {
+    const { result } = await setup()
+    await advance(3000)
+    expect(result.current.telemetry.active).toBe(false) // sem fermentação: espera
+    expect(result.current.telemetry.cooling).toBe(false)
+    expect(result.current.telemetry.heating).toBe(false)
+
+    act(() => result.current.startBatch("exemplo-ipa"))
+    await advance(4000)
+    expect(result.current.telemetry.active).toBe(true)
+
+    act(() => result.current.stopBatch())
+    await advance(4000)
+    expect(result.current.telemetry.active).toBe(false)
+    expect(result.current.telemetry.cooling).toBe(false)
+  })
+})
+
+describe("exemplo de demonstração", () => {
+  it("o exemplo tem 5 etapas de temperaturas bem diferentes: 4 de 15 s e a última de 1 min", () => {
+    const secs = DEMO_BATCH.stages.map((s) => Math.round(s.durationHours * 3600))
+    expect(secs).toEqual([15, 15, 15, 15, 60])
+    const temps = DEMO_BATCH.stages.map((s) => s.temp)
+    expect(new Set(temps).size).toBe(5)
+    const sorted = [...temps].sort((a, b) => a - b)
+    for (let i = 1; i < sorted.length; i++) expect(sorted[i] - sorted[i - 1]).toBeGreaterThanOrEqual(4) // variação bem visível
+    expect(Math.min(...temps)).toBeGreaterThanOrEqual(0)
+    expect(Math.max(...temps)).toBeGreaterThan(30) // etapa acima do ambiente: o resfriador desliga
+    expect(Math.max(...temps)).toBeLessThanOrEqual(40) // limite da placa
+    expect(DEMO_BATCH.minCycleMin).toBe(0)
+  })
+
+  it("instalação nova já vem só com o exemplo de demonstração", async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    const { result } = await setup()
+    expect(result.current.batches.map((b) => b.id)).toEqual(["exemplo-apa"])
+    expect(result.current.selectedBatch.id).toBe("exemplo-apa")
+  })
+
+  it("quem já tinha os exemplos antigos fica só com o novo (e os lotes próprios continuam)", async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    const meu = { id: "meu", name: "Meu lote", style: "x", yeast: "y", stages: [{ name: "A", durationHours: 1, temp: 18 }] }
+    localStorage.setItem("fermentador.batches", JSON.stringify([...LONG_BATCHES_FOR_MIGRATION, meu]))
+    localStorage.setItem("fermentador.selected", JSON.stringify("exemplo-ipa"))
+    const { result } = await setup()
+    expect(result.current.batches.map((b) => b.id).sort()).toEqual(["exemplo-apa", "meu"])
+    expect(result.current.selectedBatch.id).toBe("exemplo-apa")
+  })
+
+  it("quem tinha o lote salvo como \"Exemplo · American Pale Ale\" passa a ver só \"American Pale Ale\"", async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    localStorage.setItem("fermentador.seed", "3") // mesmo já migrado, o nome é corrigido
+    localStorage.setItem("fermentador.batches", JSON.stringify([{ ...DEMO_BATCH, name: "Exemplo · American Pale Ale" }]))
+    const { result } = await setup()
+    expect(result.current.batches.map((b) => b.name)).toEqual(["American Pale Ale"])
+  })
+
+  it("a demonstração roda sozinha pelas 5 etapas e termina em 2 min", async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    const { result } = await setup()
+    act(() => result.current.startBatch("exemplo-apa"))
+    const seen = []
+    for (let i = 0; i < 125; i++) {
+      await advance(1000)
+      if (result.current.run) seen.push(result.current.run.stageIndex)
+    }
+    expect([...new Set(seen)]).toEqual([0, 1, 2, 3, 4])
+    expect(result.current.run).toBeNull()
+    expect(result.current.log.map((e) => e.event)).toContain("Fermentação concluída")
+  })
+})
+
+describe("demonstração: resfriador sem pausa mínima", () => {
+  it("a placa recebe MC 0 ao iniciar a demonstração e volta ao padrão (3 min) ao parar", async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    const sent = []
+    const orig = SimulatorTransport.prototype.send
+    vi.spyOn(SimulatorTransport.prototype, "send").mockImplementation(function (line) {
+      sent.push(line.trim())
+      return orig.call(this, line)
+    })
+    const { result } = await setup()
+    sent.length = 0
+    act(() => result.current.startBatch("exemplo-apa"))
+    await advance(1500)
+    expect(sent).toContain("MC 0.0")
+    sent.length = 0
+    act(() => result.current.stopBatch())
+    await advance(1500)
+    expect(sent).toContain("MC 3.0")
+    vi.restoreAllMocks()
+  })
+
+  it("quem já tinha o lote antigo recebe a receita nova (35 °C, sem pausa) mantendo a tolerância escolhida", async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    localStorage.setItem("fermentador.seed", "3")
+    const old = { ...DEMO_BATCH, minCycleMin: undefined, hysteresis: 1, stages: DEMO_BATCH.stages.map((s) => ({ ...s, temp: 28 })) }
+    localStorage.setItem("fermentador.batches", JSON.stringify([old]))
+    const { result } = await setup()
+    const demo = result.current.batches[0]
+    expect(demo.stages[2].temp).toBe(35)
+    expect(demo.minCycleMin).toBe(0)
+    expect(demo.hysteresis).toBe(1)
+  })
+})
+
+describe("histórico de fermentações", () => {
+  async function runDemoToEnd() {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    const hook = await setup()
+    act(() => hook.result.current.startBatch("exemplo-apa"))
+    for (let i = 0; i < 125; i++) await advance(1000)
+    return hook
+  }
+
+  it("ao concluir, guarda o registro com curva, etapas e resultado", async () => {
+    const { result } = await runDemoToEnd()
+    expect(result.current.run).toBeNull()
+    expect(result.current.activeRecord).toBeNull()
+    expect(result.current.records).toHaveLength(1)
+    const rec = result.current.records[0]
+    expect(rec).toMatchObject({ batchId: "exemplo-apa", name: "American Pale Ale", status: "finished" })
+    expect(rec.stages.map((s) => s.temp)).toEqual([24, 16, 35, 8, 20])
+    expect(rec.stageStarts).toHaveLength(5)
+    expect(rec.endedAt).toBeGreaterThan(rec.startedAt)
+    expect(rec.points.length).toBeGreaterThan(100) // um ponto por segundo durante ~2 min
+    // os alvos da placa mudaram junto com as etapas
+    expect(new Set(rec.points.map((p) => p.setpoint)).size).toBeGreaterThanOrEqual(4)
+  })
+
+  it("enquanto roda, o registro vai crescendo; parar o fecha como interrompido", async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    const { result } = await setup()
+    act(() => result.current.startBatch("exemplo-apa"))
+    await advance(20_000)
+    expect(result.current.activeRecord.status).toBe("running")
+    expect(result.current.activeRecord.points.length).toBeGreaterThan(10)
+    expect(result.current.activeRecord.stageStarts.length).toBeGreaterThanOrEqual(2) // já passou pela 1ª etapa (15 s)
+    act(() => result.current.stopBatch())
+    expect(result.current.activeRecord).toBeNull()
+    expect(result.current.records.at(-1).status).toBe("stopped")
+  })
+
+  it("pular até o fim fecha como concluída", async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    const { result } = await setup()
+    act(() => result.current.startBatch("exemplo-apa"))
+    for (let i = 0; i < 5; i++) {
+      await advance(1100)
+      act(() => result.current.skipCurrentStage())
+    }
+    expect(result.current.run).toBeNull()
+    expect(result.current.records.at(-1).status).toBe("finished")
+  })
+
+  it("guarda só as últimas 10 e permite apagar um registro", async () => {
+    localStorage.clear()
+    localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
+    const { result } = await setup()
+    for (let i = 0; i < 12; i++) {
+      act(() => result.current.startBatch("exemplo-apa"))
+      await advance(1100)
+      act(() => result.current.stopBatch())
+    }
+    expect(result.current.records).toHaveLength(10)
+    const id = result.current.records[0].id
+    act(() => result.current.deleteRecord(id))
+    expect(result.current.records).toHaveLength(9)
+    expect(result.current.records.some((r) => r.id === id)).toBe(false)
+  })
+
+  it("o registro sobrevive a recarregar a página", async () => {
+    const first = await runDemoToEnd()
+    first.unmount()
+    const second = renderHook(() => useFermenter())
+    await advance(100)
+    expect(second.result.current.records).toHaveLength(1)
+    expect(second.result.current.records[0].points.length).toBeGreaterThan(100)
   })
 })

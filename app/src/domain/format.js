@@ -6,6 +6,18 @@ export function formatDateTime(ms) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+/** "06:00:15" */
+export function formatClockSec(ms) {
+  const d = new Date(ms)
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+/** "14/08 06:00:15" */
+export function formatDateTimeSec(ms) {
+  const d = new Date(ms)
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${formatClockSec(ms)}`
+}
+
 /** "06:00" */
 export function formatClock(ms) {
   const d = new Date(ms)
@@ -26,8 +38,8 @@ export function formatTemp(value, digits = 1) {
 
 /** 4 min | 2 h 10 min | 3 d 4 h */
 export function formatDuration(ms) {
-  const totalMin = Math.max(0, Math.round(ms / 60_000))
-  if (totalMin < 1) return "menos de 1 min"
+  if (ms < 60_000) return `${Math.max(0, Math.round(ms / 1000))} s`
+  const totalMin = Math.round(ms / 60_000)
   if (totalMin < 60) return `${totalMin} min`
   const totalH = Math.floor(totalMin / 60)
   if (totalH < 24) {

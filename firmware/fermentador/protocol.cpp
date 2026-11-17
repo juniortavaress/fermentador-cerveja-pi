@@ -31,6 +31,9 @@ Command protocolParse(const char *line) {
   } else if (up[0] == 'M' && up[1] == 'C') {
     if (parseNumber(up + 2, v) && v >= 0 && v <= MINCYCLE_MAX_MIN) { cmd.type = CMD_SET_MINCYCLE; cmd.value = v; }
     else cmd.type = CMD_INVALID;
+  } else if (up[0] == 'R' && up[1] == 'U' && up[2] == 'N') {
+    if (parseNumber(up + 3, v) && (v == 0 || v == 1)) { cmd.type = CMD_SET_RUN; cmd.value = v; }
+    else cmd.type = CMD_INVALID;
   } else if (up[0] == 'H') {
     if (parseNumber(up + 1, v) && v >= HYST_MIN && v <= HYST_MAX) { cmd.type = CMD_SET_HYST; cmd.value = v; }
     else cmd.type = CMD_INVALID;
@@ -47,7 +50,8 @@ void protocolWriteTelemetry(Print &out, const Telemetry &t) {
   if (isnan(t.tAmbient)) out.print(F("0")); else out.print(t.tAmbient, 1);
   out.print(F(",Aquec:"));   out.print(t.heating ? 1 : 0);
   out.print(F(",Frio:"));    out.print(t.cooling ? 1 : 0);
-  out.print(F(",Rntc_k:"));  out.println(t.rNtcK, 1);
+  out.print(F(",Rntc_k:"));  out.print(t.rNtcK, 1);
+  out.print(F(",On:"));      out.println(t.enabled ? 1 : 0);
 }
 
 void protocolWriteConfig(Print &out, const ControlConfig &cfg) {
@@ -58,5 +62,5 @@ void protocolWriteConfig(Print &out, const ControlConfig &cfg) {
 }
 
 void protocolWriteError(Print &out) {
-  out.println(F("# Comando invalido. Use: SP 18.5 | H 0.5 | MC 3 | ?"));
+  out.println(F("# Comando invalido. Use: SP 18.5 | H 0.5 | MC 3 | RUN 1 | ?"));
 }

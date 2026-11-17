@@ -9,6 +9,7 @@ const MC_MAX = 30
 export class DeviceSim {
   cfg = { setPoint: 18, hysteresis: 0.5, minCycleMs: 3 * 60_000 }
   state = initialControlState()
+  enabled = false // como o firmware: começa em espera até receber RUN 1
   elapsedS = 0
 
   constructor(opts = {}) {
@@ -27,12 +28,14 @@ export class DeviceSim {
     const heat = this.state.heating ? 0.012 : 0
     const cool = this.state.cooling ? 0.01 : 0
     this.chamber += dtS * (leak + heat - cool)
-    this.state = controllerUpdate(this.cfg, this.state, this.chamber, this.ambient, nowMs)
+    this.state = this.enabled
+      ? controllerUpdate(this.cfg, this.state, this.chamber, this.ambient, nowMs)
+      : initialControlState()
   }
 
   telemetryLine() {
     const f = (n) => n.toFixed(1)
-    return `SP:${f(this.cfg.setPoint)},Tcaixa:${f(this.chamber)},Tamb:${f(this.ambient)},Aquec:${this.state.heating ? 1 : 0},Frio:${this.state.cooling ? 1 : 0},Rntc_k:${f(10)}`
+    return `SP:${f(this.cfg.setPoint)},Tcaixa:${f(this.chamber)},Tamb:${f(this.ambient)},Aquec:${this.state.heating ? 1 : 0},Frio:${this.state.cooling ? 1 : 0},Rntc_k:${f(10)},On:${this.enabled ? 1 : 0}`
   }
 
   configLine() {
@@ -45,15 +48,19 @@ export class DeviceSim {
     if (!line) return []
     if (line === "?") return [this.configLine()]
 
-    const invalid = ["# Comando invalido. Use: SP 18.5 | H 0.5 | MC 3 | ?"]
-    const m = line.match(/^(SP|MC|H)\s*(-?[\d.]+)$/)
+    const invalid = ["# Comando invalido. Use: SP 18.5 | H 0.5 | MC 3 | RUN 1 | ?"]
+    const m = line.match(/^(SP|MC|RUN|H)\s*(-?[\d.]+)$/)
     if (!m) return invalid
     const v = parseFloat(m[2])
     if (Number.isNaN(v)) return invalid
 
     if (m[1] === "SP" && v >= SP_RANGE[0] && v <= SP_RANGE[1]) this.cfg.setPoint = v
     else if (m[1] === "H" && v >= HYST_RANGE[0] && v <= HYST_RANGE[1]) this.cfg.hysteresis = v
-    else if (m[1] === "MC" && v >= 0 && v <= MC_MAX) this.cfg.minCycleMs = v * 60_000
+    else if (m[1] === "RUN" && (v === 0 || v === 1)) {
+      this.enabled = v === 1
+      if (!this.enabled) this.state = initialControlState()
+      return [this.enabled ? "# Controle: ligado" : "# Controle: em espera"]
+    } else if (m[1] === "MC" && v >= 0 && v <= MC_MAX) this.cfg.minCycleMs = v * 60_000
     else return invalid
     return [this.configLine()]
   }

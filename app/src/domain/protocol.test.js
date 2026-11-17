@@ -10,7 +10,13 @@ describe("parseLine", () => {
       ambient: 27.9,
       heating: true,
       cooling: false,
+      active: true, // firmware antigo, sem o campo On, conta como ligado
     })
+  })
+
+  it("lê o campo On: 0 = placa em espera, 1 = controlando", () => {
+    expect(parseLine("SP:18.0,Tcaixa:17.4,Tamb:27.9,Aquec:0,Frio:0,Rntc_k:8.8,On:0").active).toBe(false)
+    expect(parseLine("SP:18.0,Tcaixa:17.4,Tamb:27.9,Aquec:0,Frio:1,Rntc_k:8.8,On:1").active).toBe(true)
   })
 
   it("trata NTC solto (Rntc_k <= 0) como ambiente ausente", () => {
@@ -46,5 +52,12 @@ describe("encodeCommand", () => {
     expect(encodeCommand({ type: "hyst", value: 2 })).toBe("H 2.0")
     expect(encodeCommand({ type: "minCycle", value: 3 })).toBe("MC 3.0")
     expect(encodeCommand({ type: "getConfig" })).toBe("?")
+  })
+})
+
+describe("encodeCommand run", () => {
+  it("liga e desliga o controle", () => {
+    expect(encodeCommand({ type: "run", value: true })).toBe("RUN 1")
+    expect(encodeCommand({ type: "run", value: false })).toBe("RUN 0")
   })
 })

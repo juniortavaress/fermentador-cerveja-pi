@@ -1,93 +1,123 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useFermenter } from "./state/useFermenter.js"
 import { ConfirmDialog } from "./ui/primitives.jsx"
-import { IconHome, IconLog, IconSchedule, IconSettings, IconTemp } from "./ui/icons.jsx"
+import { connectionInfo } from "./ui/connection.js"
+import { IconBatches, IconChart, IconHome, IconLog, IconSettings } from "./ui/icons.jsx"
 import OverviewPage from "./pages/OverviewPage.jsx"
+import BatchPage from "./pages/BatchPage.jsx"
 import TemperaturePage from "./pages/TemperaturePage.jsx"
 import LogPage from "./pages/LogPage.jsx"
-import BatchPage from "./pages/BatchPage.jsx"
 import SettingsPage from "./pages/SettingsPage.jsx"
 
 const TABS = [
-  { id: "overview", label: "Início", title: "Visão geral", Icon: IconHome },
-  { id: "schedule", label: "Lote", title: "Lote", Icon: IconSchedule },
-  { id: "temperature", label: "Temp.", title: "Temperatura", Icon: IconTemp },
-  { id: "log", label: "Registro", title: "Registro de Eventos", Icon: IconLog },
-  { id: "settings", label: "Config.", title: "Configurações", Icon: IconSettings },
+  { id: "home", label: "Início", Icon: IconHome },
+  { id: "batches", label: "Lotes", Icon: IconBatches },
+  { id: "temp", label: "Histórico", Icon: IconChart },
+  { id: "log", label: "Registro", Icon: IconLog },
+  { id: "settings", label: "Ajustes", Icon: IconSettings },
 ]
 
-function connectionColor(f) {
-  if (f.status !== "connected") return "#9CA3AF"
-  return f.stale ? "#F59E0B" : "#16A34A"
+const FRAME_HEIGHT = 868 // altura do celular com a moldura
+
+/** Encolhe a moldura quando a janela é baixa, para o celular inteiro caber na tela. */
+function useFrameScale() {
+  const calc = () => Math.min(1, Math.max(0.5, (window.innerHeight - 24) / FRAME_HEIGHT))
+  const [scale, setScale] = useState(calc)
+  useEffect(() => {
+    const onResize = () => setScale(calc())
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+  }, [])
+  return scale
+}
+
+function StatusBar() {
+  const [time, setTime] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+  const hh = String(time.getHours()).padStart(2, "0")
+  const mm = String(time.getMinutes()).padStart(2, "0")
+  return (
+    <div className="statusbar" aria-hidden="true">
+      <span>
+        {hh}:{mm}
+      </span>
+      <svg width="62" height="12" viewBox="0 0 62 12" fill="#20242B">
+        <rect x="0" y="7" width="3" height="5" rx="1" />
+        <rect x="5" y="5" width="3" height="7" rx="1" />
+        <rect x="10" y="2.5" width="3" height="9.5" rx="1" />
+        <rect x="15" y="0" width="3" height="12" rx="1" />
+        <path d="M30 3a8 8 0 0 1 10 0M32 6a5 5 0 0 1 6 0" stroke="#20242B" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+        <circle cx="35" cy="9.5" r="1.4" />
+        <rect x="46" y="1" width="13" height="10" rx="3" fill="none" stroke="#20242B" strokeWidth="1" />
+        <rect x="47.5" y="2.5" width="9" height="7" rx="1.6" />
+        <rect x="60" y="4" width="1.5" height="4" rx="0.7" />
+      </svg>
+    </div>
+  )
 }
 
 export default function App() {
   const f = useFermenter()
-  const [nav, setNav] = useState("overview")
+  const [nav, setNav] = useState("home")
   const [confirm, setConfirm] = useState(null)
+  const [tabKey, setTabKey] = useState(0) // muda ao tocar numa aba: ela volta ao começo (ex.: lista de lotes)
+  const scale = useFrameScale()
 
-  const askConfirm = (options) => setConfirm(options)
-  const title = TABS.find((t) => t.id === nav).title
-  const dot = connectionColor(f)
+  const conn = connectionInfo(f)
+  const title = TABS.find((t) => t.id === nav).label
+  const onChip = () => setNav("settings")
 
   return (
-    <div className="app-root">
-      <div className="app-shell">
-        {/* Cabeçalho */}
-        <div style={{ height: 56, background: "#fff", borderBottom: "1px solid #E5E7EB", display: "flex", alignItems: "center", padding: "0 20px", justifyContent: "space-between", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <p style={{ fontSize: 18, fontWeight: 700, color: "#20242B" }}>{title}</p>
-            {f.settings.mode === "dev" && (
-              <span style={{ padding: "3px 6px", borderRadius: 4, background: "#FEF3C7", color: "#92400E", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em" }}>
-                DEV MODE
-              </span>
-            )}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }} aria-live="polite">
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot, boxShadow: f.status === "connected" && !f.stale ? "0 0 0 2px #DCFCE7" : "none" }} />
-            <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 12, color: f.telemetry ? "#2563EB" : "#9CA3AF", fontWeight: 600 }}>
-              {f.telemetry ? `${f.telemetry.chamber.toFixed(2)} °C` : "—"}
-            </span>
-          </div>
-        </div>
+    <div className="stage">
+      <div className="phone" style={{ "--scale": scale }}>
+        <div className="screen">
+          <div className="island" />
+          <StatusBar />
 
-        {/* Conteúdo */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px 8px" }}>
-          {nav === "overview" && <OverviewPage f={f} />}
-          {nav === "schedule" && <BatchPage f={f} askConfirm={askConfirm} />}
-          {nav === "temperature" && <TemperaturePage f={f} />}
-          {nav === "log" && <LogPage f={f} />}
-          {nav === "settings" && <SettingsPage f={f} />}
-        </div>
+          <header className="appbar">
+            <h1>{title}</h1>
+            <button className={`conn-chip ${conn.tone}`} onClick={onChip} aria-label={`Dispositivo: ${conn.text}`}>
+              <span className="dot" />
+              {conn.text}
+            </button>
+          </header>
 
-        {confirm && (
-          <ConfirmDialog
-            {...confirm}
-            onCancel={() => setConfirm(null)}
-            onConfirm={() => {
-              confirm.onConfirm()
-              setConfirm(null)
-            }}
-          />
-        )}
+          <main className="content">
+            {nav === "home" && <OverviewPage f={f} go={setNav} askConfirm={setConfirm} />}
+            {nav === "batches" && <BatchPage key={tabKey} f={f} go={setNav} askConfirm={setConfirm} />}
+            {nav === "temp" && <TemperaturePage key={tabKey} f={f} askConfirm={setConfirm} />}
+            {nav === "log" && <LogPage f={f} />}
+            {nav === "settings" && <SettingsPage f={f} />}
+          </main>
 
-        {/* Navegação inferior */}
-        <nav style={{ minHeight: 74, background: "#fff", borderTop: "1px solid #E5E7EB", display: "flex", alignItems: "flex-start", justifyContent: "space-around", padding: "10px 0 env(safe-area-inset-bottom)", flexShrink: 0 }}>
-          {TABS.map(({ id, label, Icon }) => {
-            const active = nav === id
-            return (
-              <button
-                key={id}
-                onClick={() => setNav(id)}
-                aria-current={active ? "page" : undefined}
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", padding: "0 12px", WebkitTapHighlightColor: "transparent" }}
-              >
-                <Icon active={active} />
-                <span style={{ fontSize: 10, fontWeight: active ? 600 : 400, color: active ? "#2563EB" : "#9CA3AF" }}>{label}</span>
+          <nav className="tabbar">
+            {TABS.map(({ id, label, Icon }) => (
+              <button key={id} className={`tab ${nav === id ? "active" : ""}`} onClick={() => {
+                  setTabKey((k) => k + 1)
+                  setNav(id)
+                }} aria-current={nav === id ? "page" : undefined}>
+                <Icon active={nav === id} />
+                {label}
               </button>
-            )
-          })}
-        </nav>
+            ))}
+          </nav>
+
+          {confirm && (
+            <ConfirmDialog
+              {...confirm}
+              onCancel={() => setConfirm(null)}
+              onConfirm={() => {
+                confirm.onConfirm()
+                setConfirm(null)
+              }}
+            />
+          )}
+
+          <div className="home-indicator" />
+        </div>
       </div>
     </div>
   )

@@ -1,76 +1,87 @@
 import { useState } from "react"
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Line,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
+import { Area, AreaChart, CartesianGrid, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { downsample, sliceRange, stats } from "../domain/chart.js"
-import { formatClock } from "../domain/format.js"
-import { Card, ChartTooltip, FilterChips } from "../ui/primitives.jsx"
+import { convertPoints, fmtTemp } from "../domain/units.js"
+import { Card, ChartTooltip, Segmented } from "../ui/primitives.jsx"
+import RunsPage from "./RunsPage.jsx"
 
 const HOUR = 3_600_000
-const RANGES = { "24h": 24 * HOUR, "48h": 48 * HOUR, all: null }
+const RANGES = { "1m": 60_000, "1h": HOUR, "24h": 24 * HOUR, all: null }
 
-export default function TemperaturePage({ f }) {
-  const [range, setRange] = useState("48h")
-  const setpoint = f.telemetry?.setpoint ?? null
+function LiveTemperature({ f }) {
+  const [range, setRange] = useState("1m")
+  const unit = f.settings.unit
+  // O alvo só existe com fermentação em andamento (e só do início dela em diante).
+  const { run, runBatch } = f
+  const running = run !== null && runBatch !== null
+  const stageTemp = running ? runBatch.stages[run.stageIndex].temp : null
   const data = sliceRange(f.history, f.now, RANGES[range])
-  const chartData = downsample(data)
+  const chartData = convertPoints(downsample(data), unit).map((p) => ({
+    ...p,
+    setpoint: running && p.t >= run.startedAt ? p.setpoint : undefined,
+  }))
   const s = stats(data)
-  const dash = "—"
-
-  const rows = [
-    ["Mínimo", s ? `${s.min.toFixed(2)} °C` : dash],
-    ["Máximo", s ? `${s.max.toFixed(2)} °C` : dash],
-    ["Média", s ? `${s.avg.toFixed(2)} °C` : dash],
-    ["Setpoint", setpoint === null ? dash : `${setpoint.toFixed(1)} °C`],
-  ]
+  const fmt = (v) => (v == null ? "—" : `${fmtTemp(v, unit)} °${unit}`)
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <FilterChips options={[["24h", "24h"], ["48h", "48h"], ["all", "Tudo"]]} value={range} onChange={setRange} />
+    <>
+      <Segmented options={[["1m", "1 min"], ["1h", "1 hora"], ["24h", "24 h"], ["all", "Tudo"]]} value={range} onChange={setRange} />
 
-      <Card style={{ padding: "14px 16px" }}>
-        <p style={{ fontSize: 12, fontWeight: 600, color: "#20242B", marginBottom: 12 }}>Temperatura da Câmara</p>
+      <Card>
         {chartData.length < 2 ? (
-          <p style={{ fontSize: 12, color: "#9CA3AF", padding: "70px 0", textAlign: "center" }}>
-            Aguardando leituras (um ponto por minuto)…
-          </p>
+          <p className="empty">Ainda não há leituras suficientes. Deixe a placa conectada: o app guarda um ponto por segundo.</p>
         ) : (
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={chartData} margin={{ top: 4, right: 2, left: -28, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart accessibilityLayer={false} data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
               <defs>
                 <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2563EB" stopOpacity={0.15} />
+                  <stop offset="5%" stopColor="#2563EB" stopOpacity={0.2} />
                   <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="#F3F4F6" vertical={false} />
-              <XAxis dataKey="t" type="number" scale="time" domain={["dataMin", "dataMax"]} tickFormatter={formatClock} tickCount={5} tick={{ fontSize: 9, fill: "#9CA3AF" }} tickLine={false} axisLine={false} />
-              <YAxis domain={["auto", "auto"]} tick={{ fontSize: 9, fill: "#9CA3AF" }} tickLine={false} axisLine={false} />
-              <Tooltip content={<ChartTooltip />} />
-              {setpoint !== null && <ReferenceLine y={setpoint} stroke="#BFDBFE" strokeDasharray="3 2" strokeWidth={1} />}
-              <Area type="monotone" dataKey="actual" stroke="#2563EB" strokeWidth={1.5} fill="url(#grad)" dot={false} name="Real" isAnimationActive={false} />
-              <Line type="monotone" dataKey="ambient" stroke="#9CA3AF" strokeWidth={1} dot={false} name="Ambiente" isAnimationActive={false} />
+              <CartesianGrid stroke="#F1F2F4" vertical={false} />
+              <XAxis dataKey="t" type="number" scale="time" domain={["dataMin", "dataMax"]} hide />
+              <YAxis domain={["auto", "auto"]} tick={{ fontSize: 12, fill: "#6B7280" }} tickLine={false} axisLine={false} />
+              <Tooltip content={<ChartTooltip unit={unit} />} />
+              {running && <Line type="stepAfter" dataKey="setpoint" stroke="#93C5FD" strokeWidth={2} strokeDasharray="5 4" dot={false} name="Alvo" isAnimationActive={false} />}
+              <Area type="monotone" dataKey="actual" stroke="#2563EB" strokeWidth={2.5} fill="url(#grad)" dot={false} name="Câmara" isAnimationActive={false} />
+              <Line type="monotone" dataKey="ambient" stroke="#9CA3AF" strokeWidth={1.5} dot={false} name="Ambiente" isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
         )}
       </Card>
 
-      {rows.map(([label, value], i) => (
-        <Card key={label} style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 13, color: "#6B7280" }}>{label}</span>
-          <span style={{ fontSize: 15, fontWeight: 600, fontFamily: "JetBrains Mono, monospace", color: i === 3 ? "#2563EB" : "#20242B" }}>
-            {value}
-          </span>
-        </Card>
-      ))}
-    </div>
+      <div className="stat-grid">
+        {[
+          ["Mais fria", fmt(s?.min)],
+          ["Mais quente", fmt(s?.max)],
+          ["Média", fmt(s?.avg)],
+          ...(running ? [["Alvo da etapa", fmt(stageTemp)]] : []),
+        ].map(([label, value], i, all) => (
+          <div className="stat" key={label} style={all.length % 2 === 1 && i === all.length - 1 ? { gridColumn: "span 2" } : undefined}>
+            <p className="small">{label}</p>
+            <b>{value}</b>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+export default function TemperaturePage({ f, askConfirm }) {
+  const [view, setView] = useState("live")
+  const [runsKey, setRunsKey] = useState(0) // tocar em "Fermentações" de novo volta para a lista
+  return (
+    <>
+      <Segmented
+        options={[["live", "Ao vivo"], ["runs", "Fermentações"]]}
+        value={view}
+        onChange={(id) => {
+          if (id === "runs") setRunsKey((k) => k + 1)
+          setView(id)
+        }}
+      />
+      {view === "live" ? <LiveTemperature f={f} /> : <RunsPage key={runsKey} f={f} askConfirm={askConfirm} />}
+    </>
   )
 }

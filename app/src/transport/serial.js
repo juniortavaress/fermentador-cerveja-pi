@@ -17,11 +17,10 @@ export function isSerialSupported() {
   return getSerial() !== null
 }
 
+/** Qualquer problema ao abrir a porta vira uma falha curta para o usuário (o detalhe técnico vai para o console). */
 function describeError(e) {
-  if (e?.name === "InvalidStateError" || /already open|Failed to open/i.test(e?.message ?? "")) {
-    return "Porta ocupada. Feche outros programas que usam a placa (Monitor Serial, plotter) e tente de novo."
-  }
-  return e?.message ?? "Erro desconhecido ao abrir a porta."
+  console.warn("Falha ao abrir a porta serial:", e)
+  return "Falha ao conectar"
 }
 
 export class SerialTransport {
@@ -54,7 +53,7 @@ export class SerialTransport {
   async connect(opts = {}) {
     const serial = getSerial()
     if (!serial) {
-      this.emitStatus("error", "Este navegador não suporta USB Serial. Use Chrome ou Edge.")
+      this.emitStatus("error", "Conexão indisponível neste navegador")
       return false
     }
 

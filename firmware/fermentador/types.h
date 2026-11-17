@@ -25,10 +25,11 @@ struct Telemetry {
   bool heating;
   bool cooling;
   float rNtcK;      // resistência do NTC em kΩ (<= 0 se sensor ausente)
+  bool enabled;     // controle ligado (fermentação ativa) ou em espera (saídas desligadas)
 };
 
 // Comando recebido do app.
-enum CommandType { CMD_NONE, CMD_SET_SP, CMD_SET_HYST, CMD_SET_MINCYCLE, CMD_GET_CONFIG, CMD_INVALID };
+enum CommandType { CMD_NONE, CMD_SET_SP, CMD_SET_HYST, CMD_SET_MINCYCLE, CMD_SET_RUN, CMD_GET_CONFIG, CMD_INVALID };
 
 struct Command {
   CommandType type;

@@ -13,15 +13,22 @@ import {
   startRun,
 } from "../domain/engine.js"
 import { formatDuration, formatTemp } from "../domain/format.js"
+import { appendHistory } from "../domain/history.js"
+import { addPoint, finishRecord, newRecord, noteStage, RECORDS_MAX } from "../domain/records.js"
 import { usePersistentState } from "./usePersistentState.js"
 import {
   ALERT_GRACE_MS,
   ALERT_THRESHOLD,
   DEFAULT_BATCHES,
   DEFAULT_SETTINGS,
+  DEMO_BATCH,
+  HISTORY_COARSE_MS,
+  HISTORY_FINE_MS,
   HISTORY_INTERVAL_MS,
   HISTORY_MAX_MS,
+  LEGACY_EXAMPLE_IDS,
   LOG_MAX,
+  SEED_VERSION,
   STALE_MS,
 } from "./defaults.js"
 
@@ -37,6 +44,8 @@ export function useFermenter() {
   const [manualSp, setManualSp] = usePersistentState(KEY + "manualSp", null)
   const [log, setLog] = usePersistentState(KEY + "log", [])
   const [history, setHistory] = usePersistentState(KEY + "history", [])
+  const [records, setRecords] = usePersistentState(KEY + "records", []) // fermentações que já terminaram
+  const [activeRecord, setActiveRecord] = usePersistentState(KEY + "activeRecord", null) // a que está rodando
 
   const [status, setStatus] = useState("disconnected")
   const [statusDetail, setStatusDetail] = useState(null)
@@ -46,7 +55,13 @@ export function useFermenter() {
 
   // Último valor de cada estado, para os callbacks do transporte (que vivem fora do ciclo de render).
   const live = useRef({})
-  live.current = { settings, batches, run, manualSp, status }
+  // Ajuste fino da placa: vem do lote em andamento; sem fermentação, volta ao padrão.
+  const activeBatch = run ? batches.find((b) => b.id === run.batchId) : null
+  const tuning = {
+    hysteresis: activeBatch?.hysteresis ?? settings.hysteresis,
+    minCycleMin: activeBatch?.minCycleMin ?? settings.minCycleMin, // sem tela: só o lote de demonstração define
+  }
+  live.current = { settings, batches, run, manualSp, status, tuning, activeRecord }
 
   const transportRef = useRef(null)
   const unsubsRef = useRef([])
@@ -58,6 +73,7 @@ export function useFermenter() {
   const lastSpSentRef = useRef(0)
   const lastSpValueRef = useRef(null)
   const lastCfgSentRef = useRef(0)
+  const lastRunSentRef = useRef(0)
   const prevSetpointRef = useRef(null)
   const actuatorsRef = useRef(null)
   const deviationRef = useRef(initialDeviation)
@@ -67,6 +83,21 @@ export function useFermenter() {
     live.current = { ...live.current, run: next }
     setRun(next)
   }, [setRun])
+
+  /** Atualiza o registro da fermentação em andamento (e já deixa `live` em dia). */
+  const commitActive = useCallback((fn) => {
+    const next = fn(live.current.activeRecord)
+    live.current = { ...live.current, activeRecord: next }
+    setActiveRecord(next)
+  }, [setActiveRecord])
+
+  /** Fecha o registro da fermentação em andamento e o guarda na lista. */
+  const finalizeRecord = useCallback((status, at) => {
+    const rec = live.current.activeRecord
+    if (!rec) return
+    commitActive(() => null)
+    setRecords((cur) => [...cur, finishRecord(rec, status, at)].slice(-RECORDS_MAX))
+  }, [commitActive, setRecords])
 
   // ── Log ──────────────────────────────────────────────────────────────────
   const addLog = useCallback((event, value, severity = "info", at = Date.now()) => {
@@ -111,13 +142,12 @@ export function useFermenter() {
     }
     setTelemetry(t)
 
-    // Histórico: um ponto por minuto
+    // Histórico: um ponto por segundo (compactado para um por minuto quando fica antigo)
     if (at - lastHistoryAtRef.current >= HISTORY_INTERVAL_MS) {
       lastHistoryAtRef.current = at
-      setHistory((h) => [
-        ...h.filter((p) => at - p.t <= HISTORY_MAX_MS),
-        { t: at, actual: t.chamber, setpoint: t.setpoint, ambient: t.ambient },
-      ])
+      const point = { t: at, actual: t.chamber, setpoint: t.setpoint, ambient: t.ambient }
+      setHistory((h) => appendHistory(h, point, { fineMs: HISTORY_FINE_MS, coarseMs: HISTORY_COARSE_MS, maxMs: HISTORY_MAX_MS }))
+      if (live.current.run && live.current.activeRecord) commitActive((rec) => addPoint(rec, point))
     }
 
     // Resistência / Peltier: registra ao desligar, com a duração
@@ -169,6 +199,13 @@ export function useFermenter() {
       }
     }
 
+    // A placa só controla a temperatura com fermentação ativa; sem ela fica em espera (saídas desligadas).
+    const wantOn = live.current.run !== null
+    if (msg.active !== wantOn && at - lastRunSentRef.current > 2000) {
+      lastRunSentRef.current = at
+      send({ type: "run", value: wantOn })
+    }
+
     // Garante que a placa está com o set point que o app quer
     const want = desiredSetpoint()
     // (valor novo: envia na hora; mesmo valor sem efeito: só reenvia a cada 3 s)
@@ -182,11 +219,11 @@ export function useFermenter() {
       send({ type: "sp", value: want })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addLog, send, setHistory])
+  }, [addLog, commitActive, send, setHistory])
 
   const handleConfig = useCallback((config) => {
     const at = Date.now()
-    const s = live.current.settings
+    const s = live.current.tuning
     if (at - lastCfgSentRef.current <= 3000) return
     let sent = false
     if (Math.abs(config.hysteresis - s.hysteresis) > 0.05) {
@@ -266,6 +303,45 @@ export function useFermenter() {
     setSettings((s) => ({ ...s, mode }))
   }, [setSettings])
 
+  // Lista de exemplos: tira os antigos (uma vez só) e mantém o nome do lote de demonstração sem "Exemplo ·".
+  useEffect(() => {
+    let seeded = false
+    try {
+      seeded = localStorage.getItem(KEY + "seed") === SEED_VERSION
+    } catch {
+      /* sem storage: segue e tenta migrar mesmo assim */
+    }
+    const runningId = live.current.run?.batchId
+    const legacy = (id) => LEGACY_EXAMPLE_IDS.includes(id) && id !== runningId
+    setBatches((cur) => {
+      // sempre: o prefixo "Exemplo" saiu do nome do lote de demonstração
+      let next = cur.map((b) => (b.id === DEMO_BATCH.id && /^exemplo/i.test(b.name) ? { ...b, name: DEMO_BATCH.name } : b))
+      if (!seeded) {
+        // versão 4: traz a receita atual do lote de demonstração (mantém a tolerância que o usuário escolheu)
+        next = next.map((b) => (b.id === DEMO_BATCH.id ? { ...DEMO_BATCH, ...(b.hysteresis != null ? { hysteresis: b.hysteresis } : {}) } : b))
+        next = next.filter((b) => !legacy(b.id))
+        if (!next.some((b) => b.id === DEMO_BATCH.id)) next = [DEMO_BATCH, ...next]
+      }
+      return next
+    })
+    if (!seeded) {
+      setSelectedId((id) => (legacy(id) ? DEMO_BATCH.id : id))
+      try {
+        localStorage.setItem(KEY + "seed", SEED_VERSION)
+      } catch {
+        /* ignore */
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Registro sem fermentação correspondente (ex.: dados antigos): fecha como interrompido.
+  useEffect(() => {
+    const L = live.current
+    if (L.activeRecord && !L.run) finalizeRecord("stopped", L.activeRecord.points.at(-1)?.t ?? Date.now())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Reconecta sozinho ao abrir o app (porta já autorizada / simulador).
   useEffect(() => {
     const mode = live.current.settings.mode
@@ -301,8 +377,10 @@ export function useFermenter() {
                 const from = batch.stages[e.fromIndex]
                 const to = batch.stages[e.toIndex]
                 addLog(`Etapa: ${to.name}`, `${from.name} → ${to.name} · ${formatTemp(to.temp)} °C`, "info", e.at)
+                if (live.current.activeRecord) commitActive((rec) => noteStage(rec, e.at))
               } else {
                 addLog("Fermentação concluída", batch.name, "info", e.at)
+                finalizeRecord("finished", e.at)
               }
             }
           }
@@ -316,18 +394,18 @@ export function useFermenter() {
       }
     }, 1000)
     return () => clearInterval(id)
-  }, [addLog, commitRun])
+  }, [addLog, commitActive, commitRun, finalizeRecord])
 
   // Envia delta T e ciclo mínimo à placa quando o usuário muda (com pausa para o slider).
   useEffect(() => {
     if (status !== "connected") return
     const id = setTimeout(() => {
       lastCfgSentRef.current = Date.now()
-      send({ type: "hyst", value: settings.hysteresis })
-      send({ type: "minCycle", value: settings.minCycleMin })
+      send({ type: "hyst", value: tuning.hysteresis })
+      send({ type: "minCycle", value: tuning.minCycleMin })
     }, 400)
     return () => clearTimeout(id)
-  }, [settings.hysteresis, settings.minCycleMin, status, send])
+  }, [tuning.hysteresis, tuning.minCycleMin, status, send])
 
   // ── Ações do usuário ─────────────────────────────────────────────────────
   const selectedBatch = batches.find((b) => b.id === selectedId) ?? batches[0] ?? null
@@ -340,11 +418,13 @@ export function useFermenter() {
     const batch = L.batches.find((b) => b.id === id)
     if (!batch || L.run || L.status !== "connected") return
     const first = batch.stages[0]
-    commitRun(startRun(batch, Date.now()))
+    const started = startRun(batch, Date.now())
+    commitRun(started)
+    commitActive(() => newRecord(batch, started.startedAt, batch.hysteresis ?? L.settings.hysteresis))
     live.current = { ...live.current, manualSp: null }
     setManualSp(null) // o lote assume o set point
     addLog("Fermentação iniciada", `${batch.name} · ${first.name} a ${formatTemp(first.temp)} °C`, "info")
-  }, [addLog, commitRun, setManualSp])
+  }, [addLog, commitActive, commitRun, setManualSp])
 
   const stopBatch = useCallback(() => {
     const L = live.current
@@ -352,8 +432,9 @@ export function useFermenter() {
     const batch = L.batches.find((b) => b.id === L.run.batchId)
     const stage = batch?.stages[L.run.stageIndex]
     commitRun(null)
+    finalizeRecord("stopped", Date.now())
     addLog("Fermentação interrompida", `${batch?.name ?? "Lote"}${stage ? ` · etapa ${stage.name}` : ""}`, "warning")
-  }, [addLog, commitRun])
+  }, [addLog, commitRun, finalizeRecord])
 
   const skipCurrentStage = useCallback(() => {
     const L = live.current
@@ -367,16 +448,18 @@ export function useFermenter() {
         const from = batch.stages[e.fromIndex]
         const to = batch.stages[e.toIndex]
         addLog(`Etapa: ${to.name}`, `${from.name} → ${to.name} · ${formatTemp(to.temp)} °C (pulada)`, "info", e.at)
+        if (live.current.activeRecord) commitActive((rec) => noteStage(rec, e.at))
       } else {
         addLog("Fermentação concluída", batch.name, "info", e.at)
+        finalizeRecord("finished", e.at)
       }
     }
-  }, [addLog, commitRun])
+  }, [addLog, commitActive, commitRun, finalizeRecord])
 
   /** Set point manual: só vale sem fermentação em andamento (senão a etapa manda). */
   const setManualSetpoint = useCallback((value) => {
     if (live.current.run) return
-    const v = Math.min(30, Math.max(0, Math.round(value * 10) / 10))
+    const v = Math.min(40, Math.max(0, Math.round(value * 10) / 10)) // 40 °C é o limite da própria placa
     live.current = { ...live.current, manualSp: v }
     setManualSp(v)
     if (live.current.status === "connected") {
@@ -393,6 +476,13 @@ export function useFermenter() {
     addLog("Lote criado", `${batch.name} · ${batch.stages.length} etapas`, "info")
     return batch
   }, [addLog, setBatches, setSelectedId])
+
+  /** Edita campos de um lote (ex.: ajuste fino). Se ele está rodando, a placa recebe o novo valor na hora. */
+  const updateBatch = useCallback((id, patch) => {
+    setBatches((cur) => cur.map((b) => (b.id === id ? { ...b, ...patch } : b)))
+  }, [setBatches])
+
+  const deleteRecord = useCallback((id) => setRecords((cur) => cur.filter((r) => r.id !== id)), [setRecords])
 
   const deleteBatch = useCallback((id) => {
     const L = live.current
@@ -433,6 +523,11 @@ export function useFermenter() {
     skipCurrentStage,
     setManualSetpoint,
     createBatch,
+    updateBatch,
+    // fermentações (histórico)
+    records,
+    activeRecord,
+    deleteRecord,
     deleteBatch,
   }
 }

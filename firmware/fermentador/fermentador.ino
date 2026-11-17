@@ -20,6 +20,7 @@ ControlConfig cfg = {
   (unsigned long)(DEFAULT_MINCYCLE_MIN * 60000UL)
 };
 ControlState state;
+bool controlEnabled = false;   // começa em espera: só controla quando o app manda RUN 1
 unsigned long lastReport = 0;
 
 void handleCommands() {
@@ -30,6 +31,11 @@ void handleCommands() {
       case CMD_SET_SP:       cfg.setPoint = c.value;                              protocolWriteConfig(commsOut(), cfg); break;
       case CMD_SET_HYST:     cfg.hysteresis = c.value;                            protocolWriteConfig(commsOut(), cfg); break;
       case CMD_SET_MINCYCLE: cfg.minCycleMs = (unsigned long)(c.value * 60000.0); protocolWriteConfig(commsOut(), cfg); break;
+      case CMD_SET_RUN:
+        controlEnabled = c.value > 0.5;
+        if (!controlEnabled) { controllerInit(state); setHeater(false); setCooler(false); }
+        commsOut().println(controlEnabled ? F("# Controle: ligado") : F("# Controle: em espera"));
+        break;
       case CMD_GET_CONFIG:   protocolWriteConfig(commsOut(), cfg); break;
       case CMD_INVALID:      protocolWriteError(commsOut()); break;
       default: break;
@@ -55,11 +61,12 @@ void loop() {
 
     float tChamber = readChamberTemp();
     float tAmbient = readAmbientTemp();
-    controllerUpdate(cfg, state, tChamber, tAmbient, now);
+    if (controlEnabled) controllerUpdate(cfg, state, tChamber, tAmbient, now);
+    else controllerInit(state);   // em espera: tudo desligado
     setHeater(state.heating);
     setCooler(state.cooling);
 
-    Telemetry t = { cfg.setPoint, tChamber, tAmbient, state.heating, state.cooling, lastNtcResistanceK() };
+    Telemetry t = { cfg.setPoint, tChamber, tAmbient, state.heating, state.cooling, lastNtcResistanceK(), controlEnabled };
     protocolWriteTelemetry(commsOut(), t);
   }
 }

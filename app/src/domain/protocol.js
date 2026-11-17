@@ -6,7 +6,7 @@ const CONFIG_RE =
 
 /**
  * Interpreta uma linha vinda da placa. Retorna null para lixo/linha vazia.
- * @returns {{kind:"telemetry", setpoint:number, chamber:number, ambient:number|null, heating:boolean, cooling:boolean}
+ * @returns {{kind:"telemetry", setpoint:number, chamber:number, ambient:number|null, heating:boolean, cooling:boolean, active:boolean}
  *   | {kind:"config", config:import("./types.js").DeviceConfig}
  *   | {kind:"info", text:string}
  *   | null}
@@ -50,12 +50,14 @@ export function parseLine(raw) {
     ambient: ntcOk && fields.Tamb !== undefined ? fields.Tamb : null,
     heating: fields.Aquec === 1,
     cooling: fields.Frio === 1,
+    // On:0 = placa em espera (saídas desligadas). Firmware antigo não manda o campo: conta como ligada.
+    active: fields.On === undefined ? true : fields.On === 1,
   }
 }
 
 /**
  * Converte um comando em uma linha (sem o \n final).
- * Comandos: {type:"sp"|"hyst"|"minCycle", value:number} ou {type:"getConfig"}
+ * Comandos: {type:"sp"|"hyst"|"minCycle", value:number}, {type:"run", value:boolean} ou {type:"getConfig"}
  */
 export function encodeCommand(cmd) {
   switch (cmd.type) {
@@ -65,6 +67,8 @@ export function encodeCommand(cmd) {
       return `H ${cmd.value.toFixed(1)}`
     case "minCycle":
       return `MC ${cmd.value.toFixed(1)}`
+    case "run":
+      return `RUN ${cmd.value ? 1 : 0}`
     case "getConfig":
       return "?"
     default:

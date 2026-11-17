@@ -65,6 +65,7 @@
  * @property {number} hysteresis   °C (delta T)
  * @property {number} minCycleMin  minutos entre mudanças do arrefecimento (0 = sem limite)
  * @property {boolean} alerts
+ * @property {"C"|"F"} unit      unidade de exibição da temperatura
  * @property {"live"|"dev"} mode   live = placa real, dev = simulador
  */
 
