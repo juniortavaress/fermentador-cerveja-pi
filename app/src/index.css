@@ -70,6 +70,9 @@ select:focus-visible {
 .stage {
   height: 100dvh;
   display: grid;
+  /* a trilha tem exatamente o tamanho da janela: o celular (868 px) é centralizado e encolhido sobre ela, sem escorregar para baixo */
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   overflow: hidden;
   background: radial-gradient(circle at 30% 20%, #eef1f6, #d5dae3);
