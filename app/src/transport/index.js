@@ -1,15 +1,24 @@
-import { SerialTransport } from "./serial.js"
+import { SerialTransport, isSerialSupported } from "./serial.js"
+import { BleTransport, isBleSupported } from "./ble.js"
 import { SimulatorTransport } from "./simulator.js"
 
-export { isSerialSupported } from "./serial.js"
+export { isSerialSupported, isBleSupported }
+
+/** Placa real: Bluetooth sempre que o navegador suporta (celular e PC); senão USB. */
+export function liveKind() {
+  return isBleSupported() ? "ble" : "serial"
+}
+
+/** Há alguma forma de falar com a placa neste navegador? */
+export function isLiveSupported() {
+  return isSerialSupported() || isBleSupported()
+}
 
 /**
- * Único ponto que decide qual transporte usar.
- *
- * Para trocar o Arduino pelo ESP: crie src/transport/websocket.js com a mesma interface do
- * SerialTransport (connect, disconnect, send, onLine, onStatus) e use-o aqui no modo "live".
- * O app, o motor de etapas e o protocolo continuam iguais.
+ * Único ponto que decide qual transporte usar. Todo transporte tem a mesma interface
+ * (connect, disconnect, send, onLine, onStatus); o app, o motor de etapas e o protocolo não mudam.
  */
 export function createTransport(mode) {
-  return mode === "dev" ? new SimulatorTransport() : new SerialTransport()
+  if (mode === "dev") return new SimulatorTransport()
+  return liveKind() === "ble" ? new BleTransport() : new SerialTransport()
 }

@@ -48,7 +48,7 @@ describe("App", () => {
       ["Lotes", "+ Novo lote"],
       ["Histórico", "Mais fria"],
       ["Registro", "Só alertas"],
-      ["Ajustes", "Placa (Arduino)"],
+      ["Ajustes", "Sistema"],
       ["Início", "Pronto para fermentar"],
     ]) {
       tab(name)

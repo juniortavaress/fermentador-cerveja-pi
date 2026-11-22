@@ -1,7 +1,7 @@
 // Estado central do app: liga o transporte (placa), o motor de etapas, o log e o histórico.
 // As páginas só recebem o objeto retornado e desenham; não falam com a placa diretamente.
 import { useCallback, useEffect, useRef, useState } from "react"
-import { createTransport, isSerialSupported } from "../transport/index.js"
+import { createTransport, isLiveSupported, liveKind } from "../transport/index.js"
 import { encodeCommand, parseLine } from "../domain/protocol.js"
 import {
   advanceRun,
@@ -36,7 +36,7 @@ import {
 } from "./defaults.js"
 
 const KEY = "fermentador."
-const transportKindFor = (mode) => (mode === "dev" ? "simulator" : "serial")
+const transportKindFor = (mode) => (mode === "dev" ? "simulator" : liveKind())
 
 export function useFermenter() {
   const [storedSettings, setSettings] = usePersistentState(KEY + "settings", DEFAULT_SETTINGS)
@@ -258,7 +258,8 @@ export function useFermenter() {
       lastSeenRef.current = Date.now()
       actuatorsRef.current = null
       prevSetpointRef.current = null
-      const kind = transportRef.current?.kind === "simulator" ? "simulador" : "USB"
+      const k = transportRef.current?.kind
+      const kind = k === "simulator" ? "simulador" : k === "ble" ? "Bluetooth" : "USB"
       addLog("Dispositivo conectado", kind, "info")
       // A placa pode ter reiniciado ao abrir a porta; pede a configuração depois que ela subir.
       setTimeout(() => send({ type: "getConfig" }), 2500)
@@ -353,14 +354,14 @@ export function useFermenter() {
   // Reconecta sozinho ao abrir o app (porta já autorizada / simulador).
   useEffect(() => {
     const mode = live.current.settings.mode
-    if (mode === "dev" || isSerialSupported()) connect({ auto: true })
+    if (mode === "dev" || isLiveSupported()) connect({ auto: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Troca o transporte quando o modo muda (Live <-> Developer)
   useEffect(() => {
     if (status === "disconnected" && transportRef.current === null) {
-      if (settings.mode === "dev" || isSerialSupported()) connect({ auto: true })
+      if (settings.mode === "dev" || isLiveSupported()) connect({ auto: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.mode])
@@ -524,7 +525,7 @@ export function useFermenter() {
     status,
     statusDetail,
     stale,
-    serialSupported: isSerialSupported(),
+    liveSupported: isLiveSupported(),
     connect,
     disconnect,
     setMode,

@@ -8,14 +8,14 @@ export default function SettingsPage({ f }) {
   const running = f.run !== null
   const conn = connectionInfo(f)
   const connected = status === "connected"
-  const canConnect = dev || f.serialSupported
+  const canConnect = dev || f.liveSupported
   const tone = { ok: "green", warn: "amber", off: "" }[conn.tone]
 
   return (
     <>
       <Card>
         <div className="row">
-          <p className="h2">Placa (Arduino)</p>
+          <p className="h2">Sistema</p>
           <span className={`pill ${tone}`}>{conn.text}</span>
         </div>
         <p className="sub" style={{ marginTop: 6 }}>
@@ -35,7 +35,7 @@ export default function SettingsPage({ f }) {
             </>
           ) : (
             <button className="btn" style={{ marginTop: 14 }} onClick={() => f.connect()} disabled={status === "connecting"}>
-              {status === "connecting" ? "Conectando…" : "Conectar placa"}
+              {status === "connecting" ? "Conectando…" : "Conectar fermentador"}
             </button>
           ))}
       </Card>
