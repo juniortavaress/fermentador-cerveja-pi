@@ -25,7 +25,7 @@ const bool COOLER_ACTIVE_LOW = true;
 
 // ---------- Pot (faixa simulada da caixa) ----------
 const float POT_T_MIN = 0.0;
-const float POT_T_MAX = 35.0;
+const float POT_T_MAX = 45.0;
 
 // ---------- NTC (alimentação -> NTC -> pino ambiente -> resistor -> GND; 5 V no Nano, 3,3 V no ESP32) ----------
 const float NTC_R_FIXED = 10000.0;

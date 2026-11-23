@@ -317,7 +317,7 @@ describe("demonstração: resfriador sem pausa mínima", () => {
     vi.restoreAllMocks()
   })
 
-  it("quem já tinha o lote antigo recebe a receita nova (35 °C, sem pausa) mantendo a tolerância escolhida", async () => {
+  it("quem já tinha o lote antigo recebe a receita nova (31 °C, sem pausa) mantendo a tolerância escolhida", async () => {
     localStorage.clear()
     localStorage.setItem("fermentador.settings", JSON.stringify({ mode: "dev" }))
     localStorage.setItem("fermentador.seed", "3")
@@ -325,7 +325,7 @@ describe("demonstração: resfriador sem pausa mínima", () => {
     localStorage.setItem("fermentador.batches", JSON.stringify([old]))
     const { result } = await setup()
     const demo = result.current.batches[0]
-    expect(demo.stages[2].temp).toBe(35)
+    expect(demo.stages[2].temp).toBe(31)
     expect(demo.minCycleMin).toBe(0)
     expect(demo.hysteresis).toBe(1)
   })
@@ -348,7 +348,7 @@ describe("histórico de fermentações", () => {
     expect(result.current.records).toHaveLength(1)
     const rec = result.current.records[0]
     expect(rec).toMatchObject({ batchId: "exemplo-apa", name: "American Pale Ale", status: "finished" })
-    expect(rec.stages.map((s) => s.temp)).toEqual([24, 16, 35, 8, 20])
+    expect(rec.stages.map((s) => s.temp)).toEqual([24, 16, 31, 8, 20])
     expect(rec.stageStarts).toHaveLength(5)
     expect(rec.endedAt).toBeGreaterThan(rec.startedAt)
     expect(rec.points.length).toBeGreaterThan(100) // um ponto por segundo durante ~2 min

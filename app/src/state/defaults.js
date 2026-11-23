@@ -8,7 +8,7 @@ export const DEFAULT_SETTINGS = {
 }
 
 /**
- * Lote de demonstração: 5 etapas com temperaturas bem diferentes (8 a 35 °C).
+ * Lote de demonstração: 5 etapas com temperaturas bem diferentes (8 a 31 °C).
  * As 4 primeiras duram 15 s cada (1 min no total) e a última dura 1 min.
  */
 const seconds = (n) => n / 3600
@@ -22,7 +22,7 @@ export const DEMO_BATCH = {
   stages: [
     { name: "Inoculação", durationHours: seconds(15), temp: 24 },
     { name: "Primária", durationHours: seconds(15), temp: 16 },
-    { name: "Descanso de diacetil", durationHours: seconds(15), temp: 35 },
+    { name: "Descanso de diacetil", durationHours: seconds(15), temp: 31 },
     { name: "Crash", durationHours: seconds(15), temp: 8 },
     { name: "Condicionamento", durationHours: seconds(60), temp: 20 },
   ],
@@ -102,9 +102,9 @@ export const SAMPLE_BATCHES = [
 
 export const DEFAULT_BATCHES = [DEMO_BATCH, ...SAMPLE_BATCHES]
 
-/** Exemplos antigos, removidos da lista na versão 2. A versão 4 atualizou o lote de demonstração (etapa de 35 °C, resfriador sem pausa); a 5 trouxe as receitas prontas (SAMPLE_BATCHES). */
+/** Exemplos antigos, removidos da lista na versão 2. A versão 4 atualizou o lote de demonstração (resfriador sem pausa); a 5 trouxe as receitas prontas (SAMPLE_BATCHES); a 6 baixou a etapa de diacetil para 31 °C. */
 export const LEGACY_EXAMPLE_IDS = ["exemplo-ipa", "exemplo-pilsen"]
-export const SEED_VERSION = "5"
+export const SEED_VERSION = "6"
 
 // Um ponto a cada segundo (a placa manda 1 por segundo; 900 ms evita perder um por atraso).
 export const HISTORY_INTERVAL_MS = 900

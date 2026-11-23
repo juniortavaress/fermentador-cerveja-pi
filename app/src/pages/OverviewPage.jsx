@@ -57,7 +57,7 @@ function RunCard({ f, askConfirm }) {
         </div>
         <p className="small" style={{ marginTop: 8 }}>
           Restam {formatDuration(stageRemainingMs(run, batch, now))}
-          {next ? ` · depois: ${next.name} a ${fmtTemp(next.temp, unit)} °${unit}` : " · última etapa"}
+          {last ? " · última etapa" : ""}
         </p>
       </div>
 
@@ -137,14 +137,17 @@ function RunStats({ f }) {
   const tiles = [
     ["Temp. mín.", fmt(s?.min)],
     ["Temp. máx.", fmt(s?.max)],
-    ["Peltier", t ? (t.cooling ? "Resfriando" : "Inativo") : "—"],
-    ["Resistência", t ? (t.heating ? "Aquecendo" : "Inativa") : "—"],
+    ["Peltier", t ? (t.cooling ? "Resfriando" : "Inativo") : "—", "cool", t?.cooling],
+    ["Resistência", t ? (t.heating ? "Aquecendo" : "Inativa") : "—", "heat", t?.heating],
   ]
   return (
     <div className="stat-grid">
-      {tiles.map(([label, value]) => (
-        <div className="stat" key={label}>
-          <p className="small">{label}</p>
+      {tiles.map(([label, value, kind, on]) => (
+        <div className={`stat${kind ? ` ${kind}` : ""}${on ? " on" : ""}`} key={label}>
+          <p className="small">
+            {kind && <span className="lamp" aria-hidden="true" />}
+            {label}
+          </p>
           <b>{value}</b>
         </div>
       ))}

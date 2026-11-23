@@ -6,8 +6,8 @@
 
 const KEY = "fermentador.sim"
 
-/** Faixas do circuito real: o pot do firmware vai de 0 a 35 °C; o ambiente (NTC) foi limitado a 0–50 °C. */
-export const SIM_LIMITS = { chamber: { min: 0, max: 35 }, ambient: { min: 0, max: 50 } }
+/** Faixas do circuito real: o pot do firmware vai de 0 a 45 °C; o ambiente (NTC) foi limitado a 0–50 °C. */
+export const SIM_LIMITS = { chamber: { min: 0, max: 45 }, ambient: { min: 0, max: 50 } }
 const DEFAULTS = { chamber: 22, ambient: 26, auto: false }
 
 const clamp = (v, { min, max }) => Math.min(max, Math.max(min, v))

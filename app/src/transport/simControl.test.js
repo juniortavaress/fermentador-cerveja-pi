@@ -11,7 +11,7 @@ describe("controles do circuito simulado", () => {
     setSimControl({ chamber: 12.34, ambient: 31 })
     expect(getSimControl()).toMatchObject({ chamber: 12.3, ambient: 31, auto: false })
     setSimControl({ chamber: 99 })
-    expect(getSimControl().chamber).toBe(SIM_LIMITS.chamber.max) // pot do firmware vai até 35 °C
+    expect(getSimControl().chamber).toBe(SIM_LIMITS.chamber.max) // pot do firmware vai até 45 °C
     setSimControl({ ambient: -5 })
     expect(getSimControl().ambient).toBe(SIM_LIMITS.ambient.min)
   })
@@ -87,7 +87,7 @@ describe("simulação automática", () => {
     await t.send("SP 30")
     await vi.advanceTimersByTimeAsync(40_000)
     expect(last(lines, "Tcaixa")).toBeGreaterThan(29) // subiu de 10 para perto de 30
-    expect(last(lines, "Tcaixa")).toBeLessThanOrEqual(35)
+    expect(last(lines, "Tcaixa")).toBeLessThanOrEqual(45)
     const ambients = lines.filter((l) => l.startsWith("SP:")).map((l) => Number(l.match(/Tamb:(-?[\d.]+)/)[1]))
     expect(Math.max(...ambients) - Math.min(...ambients)).toBeGreaterThan(1) // oscila
     expect(Math.min(...ambients)).toBeGreaterThan(23)

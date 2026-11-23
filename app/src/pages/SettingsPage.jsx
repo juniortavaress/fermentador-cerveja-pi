@@ -27,11 +27,6 @@ export default function SettingsPage({ f }) {
               <button className="btn ghost" style={{ marginTop: 14 }} onClick={() => f.disconnect()} disabled={running}>
                 Desconectar
               </button>
-              {running && (
-                <p className="small" style={{ marginTop: 8 }}>
-                  Pare a fermentação para poder desconectar.
-                </p>
-              )}
             </>
           ) : (
             <button className="btn" style={{ marginTop: 14 }} onClick={() => f.connect()} disabled={status === "connecting"}>
